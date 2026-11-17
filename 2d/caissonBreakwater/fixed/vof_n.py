@@ -75,7 +75,4 @@ useEisenstatWalker = False#True
 maxNonlinearIts = 50
 maxLineSearches = 0
 
-if ct.opts.caisson:
-    auxiliaryVariables = [ct.vof_probes,ct.vofGauges]
-else:
-    auxiliaryVariables = [ct.vof_probes]
+auxiliaryVariables = ct.vof_gauges

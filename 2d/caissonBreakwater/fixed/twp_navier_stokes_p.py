@@ -35,7 +35,7 @@ if hasattr(domain, 'porosityTypes'):
     porosityTypes = domain.porosityTypes
     dragAlphaTypes = domain.dragAlphaTypes
     dragBetaTypes = domain.dragBetaTypes
-    epsFact_solid = domain.epsFact_solid
+    epsFact_solid = domain.epsFact_porous
 else:
     porosityTypes = None
     dragAlphaTypes = None
@@ -68,26 +68,30 @@ coefficients = RANS2P.Coefficients(epsFact=ct.epsFact_viscosity,
                                    porosityTypes=porosityTypes,
                                    dragAlphaTypes=dragAlphaTypes,
                                    dragBetaTypes=dragBetaTypes,
-                                   epsFact_solid=epsFact_solid,
-                                   barycenters=ct.domain.barycenters)
+                                   epsFact_porous=epsFact_solid,
+                                   barycenters=ct.domain.barycenters,
+                                   NONCONSERVATIVE_FORM=0.0)
 
 
-dirichletConditions = {0: lambda x, flag: domain.bc[flag].p_dirichlet,
-                       1: lambda x, flag: domain.bc[flag].u_dirichlet,
-                       2: lambda x, flag: domain.bc[flag].v_dirichlet}
+dirichletConditions = {0: lambda x, flag: domain.bc[flag].p_dirichlet.init_cython(),
+                       1: lambda x, flag: domain.bc[flag].u_dirichlet.init_cython(),
+                       2: lambda x, flag: domain.bc[flag].v_dirichlet.init_cython()}
 
-advectiveFluxBoundaryConditions = {0: lambda x, flag: domain.bc[flag].p_advective,
-                                   1: lambda x, flag: domain.bc[flag].u_advective,
-                                   2: lambda x, flag: domain.bc[flag].v_advective}
+advectiveFluxBoundaryConditions = {0: lambda x, flag: domain.bc[flag].p_advective.init_cython(),
+                                   1: lambda x, flag: domain.bc[flag].u_advective.init_cython(),
+                                   2: lambda x, flag: domain.bc[flag].v_advective.init_cython()}
 
 diffusiveFluxBoundaryConditions = {0: {},
-                                   1: {1: lambda x, flag: domain.bc[flag].u_diffusive},
-                                   2: {2: lambda x, flag: domain.bc[flag].v_diffusive}}
+                                   1: {1: lambda x, flag: domain.bc[flag].u_diffusive.init_cython()},
+                                   2: {2: lambda x, flag: domain.bc[flag].v_diffusive.init_cython()}}
 
 if nd == 3:
-    dirichletConditions[3] = lambda x, flag: domain.bc[flag].w_dirichlet
-    advectiveFluxBoundaryConditions[3] = lambda x, flag: domain.bc[flag].w_advective
-    diffusiveFluxBoundaryConditions[3] = {3: lambda x, flag: domain.bc[flag].w_diffusive}
+    dirichletConditions[3] = lambda x, flag: domain.bc[flag].w_dirichlet.init_cython()
+    advectiveFluxBoundaryConditions[3] = lambda x, flag: domain.bc[flag].w_advective.init_cython()
+    diffusiveFluxBoundaryConditions[3] = {3: lambda x, flag: domain.bc[flag].w_diffusive.init_cython()}
+
+
+
 
 
 class PerturbedSurface_p:
@@ -116,3 +120,5 @@ initialConditions = {0: PerturbedSurface_p(ct.waterLine_z),
                      2: V_IC()}
 if nd == 3:
     initialConditions[3] = W_IC()
+
+

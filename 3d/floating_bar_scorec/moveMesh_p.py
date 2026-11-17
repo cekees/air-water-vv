@@ -35,7 +35,7 @@ class FloatingObstacle(AuxiliaryVariables.AV_base):
         if self.object == None:
             return 0.0
         else:
-            hx = self.object.body.getRelPointPos(np.dot(self.object.last_rotation_inv,(x-self.object.last_position)))[0] - x[0]
+            hx = self.object.rel_point_pos(np.dot(self.object.last_rotation_inv,(x-self.object.last_position)))[0] - x[0]
 #            hcx = self.object.h[0]
 #            if fabs(hx-hcx)/(fabs(hcx)+1.0e-8) > 1.0e-8:
 #                print "hx hcx",hx,hcx
@@ -44,7 +44,7 @@ class FloatingObstacle(AuxiliaryVariables.AV_base):
         if self.object == None:
             return 0.0
         else:
-            hy = self.object.body.getRelPointPos(np.dot(self.object.last_rotation_inv,(x-self.object.last_position)))[1] - x[1]
+            hy = self.object.rel_point_pos(np.dot(self.object.last_rotation_inv,(x-self.object.last_position)))[1] - x[1]
 #            hy = self.object.body.getPointVel(self.object.last_rotation_inv*(x-self.object.last_position))[1]*self.object.model.stepController.dt_model
 #            hcy = self.object.h[1]
 #            if fabs(hy-hcy)/(fabs(hcy)+1.0e-8) > 1.0e-8:
@@ -54,7 +54,7 @@ class FloatingObstacle(AuxiliaryVariables.AV_base):
         if self.object == None:
             return 0.0
         else:
-            hz = self.object.body.getRelPointPos(np.dot(self.object.last_rotation_inv,(x-self.object.last_position)))[2] - x[2]
+            hz = self.object.rel_point_pos(np.dot(self.object.last_rotation_inv,(x-self.object.last_position)))[2] - x[2]
             #print "z",x[2],np.dot(self.object.last_rotation_inv,(x-self.object.last_position))[2],hz
 #            hz = self.object.body.getPointVel(self.object.last_rotation_inv*(x-self.object.last_position))[2]*self.object.model.stepController.dt_model
 #            hcz = self.object.h[2]

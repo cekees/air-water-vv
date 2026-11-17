@@ -6,6 +6,7 @@ import os
 from proteus.default_so import *
 from proteus import Context
 
+
 # Create context from main module
 name_so = os.path.basename(__file__)
 if '_so.py' in name_so[-6:]:
@@ -13,14 +14,19 @@ if '_so.py' in name_so[-6:]:
 elif '_so.pyc' in name_so[-7:]:
     name = name_so[:-7]
 else:
-    raise NameError, 'Split operator module must end with "_so.py"'
+    raise NameError
 
 try:
     case = __import__(name)
     Context.setFromModule(case)
     ct = Context.get()
 except ImportError:
-    raise ImportError, str(name) + '.py not found'
+    raise ImportError
+
+from proteus import BoundaryConditions
+
+for BC in ct.domain.bc:
+    BC.getContext()
 
 # List of p/n files
 pnList = []

@@ -1,6 +1,7 @@
 import sys
 from proteus import Domain, Context
 from proteus.mprans import SpatialTools as st
+from proteus.mprans import BodyDynamics as bd
 from math import *
 import numpy as np
 
@@ -109,46 +110,57 @@ domain = Domain.PiecewiseLinearComplexDomain()
 
 # ----- SHAPES ----- #
 
-front = back = tank_sponge[0]
-right = left = tank_sponge[1]
-fbt = rlt = False
-if front and back:
-    fbt = True
-if right and left:
-    rlt = True
+# old Tank3D names: front/back = x-/x+ sponges, left/right = y-/y+
+x_sponge = tank_sponge[0]
+y_sponge = tank_sponge[1]
 
 tank = st.Tank3D(domain, tank_dim)
-tank.setSponge(front=front, back=back, right=right, left=left)
-tank.setAbsorptionZones(front=fbt, back=fbt, right=rlt, left=rlt)
+tank.setSponge(x_n=x_sponge, x_p=x_sponge, y_n=y_sponge, y_p=y_sponge)
 
 caisson3D = st.Cuboid(domain, dim=dim, coords=coords)
-caisson3D.setRigidBody()
 caisson3D.setBarycenter(barycenter)
-caisson3D.setConstraints(free_x=free_x, free_r=free_r)
-# mass is not real mass ---> inerta tensor provided and scaled by mass
-mass = 15
-caisson3D.setMass(mass)
-caisson3D.It = np.array([[Ixx, 0., 0.],
-                         [0., Iyy, 0.],
-                         [0., 0., Izz]])/caisson3D.mass
 caisson3D.rotate(rotation_angle, rotation_axis)
-caisson3D.setRecordValues(pos=True, rot=True, F=True, M=True)
+
+# rigid body (proteus.mprans.BodyDynamics replaces the shape methods of 1.x)
+# the scheme (Forward_Euler, which integrates the full rotation vector) and the
+# springs (off) are the RigidBody defaults
+body = bd.RigidBody(shape=caisson3D, substeps=20)
+body.setConstraints(free_x=free_x, free_r=free_r)
+# mass is not real mass ---> inertia tensor provided and scaled by mass
+mass = 15
+body.setMass(mass)
+# RigidBody uses It per unit mass (moment = It*mass), as the 1.x shape did
+body.It = np.array([[Ixx, 0., 0.],
+                    [0., Iyy, 0.],
+                    [0., 0., Izz]])/body.mass
+body.setRecordValues(filename='caisson3D', pos=True, rot=True, F=True, M=True)
 
 # ----- BOUNDARY CONDITIONS ----- #
 
 for bc in caisson3D.BC_list:
     bc.setNoSlip()
 
-tank.BC.bottom.setFreeSlip()
-tank.BC.front.setFreeSlip()
-tank.BC.left.setFreeSlip()
-tank.BC.back.setFreeSlip()
-tank.BC.right.setFreeSlip()
-tank.BC.top.setOpenAir()
-tank.BC.sponge.setNonMaterial()
+tank.BC['z-'].setFreeSlip()
+tank.BC['x-'].setFreeSlip()
+tank.BC['y-'].setFreeSlip()
+tank.BC['x+'].setFreeSlip()
+tank.BC['y+'].setFreeSlip()
+tank.BC['z+'].setAtmosphere()
+tank.BC['sponge'].setNonMaterial()
 
+# moving mesh: tank walls fixed, the caisson moves with the body
+for tb in [tank.BC['x-'], tank.BC['x+'], tank.BC['y-'], tank.BC['y+'],
+           tank.BC['z-'], tank.BC['z+'], tank.BC['sponge']]:
+    tb.setFixedNodes()
+for bc in caisson3D.BC_list:
+    bc.setRigidBodyMoveMesh(body)
 
-
+# absorption zones in the sponge layers
+dragAlpha = 0.5/1.004e-6
+if x_sponge:
+    tank.setAbsorptionZones(dragAlpha=dragAlpha, x_n=True, x_p=True)
+if y_sponge:
+    tank.setAbsorptionZones(dragAlpha=dragAlpha, y_n=True, y_p=True)
 
 
 
@@ -161,14 +173,14 @@ nu_0 =1.004e-6
 rho_1=1.205
 nu_1 =1.500e-5
 sigma_01=0.0
-g = [0., 0., -9.81]
+g = np.array([0., 0., -9.81])
 # ------------------
 
 
 
 refinement_level = opts.refinement_level
 he = (caisson3D.dim[2])/2.0*(0.5**refinement_level)
-domain.MeshOptions.elementSize(he)
+domain.MeshOptions.setElementSize(he)
 st.assembleDomain(domain)
 
 
@@ -227,15 +239,15 @@ useRANS = 1 # 0 -- None
             # 3 -- K-Omega, 1988
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 #  Discretization
@@ -243,22 +255,22 @@ nd = 3
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,3)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,3)
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3)
          #elementBoundaryQuadrature = SimplexLobattoQuadrature(nd-1,1)
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)
     else:
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 

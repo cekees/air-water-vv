@@ -24,15 +24,15 @@ useRANS = 0 # 0 -- None
             # 2 -- K-Omega
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()    
     
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES 
+    print("INVALID: useRBLES" + useRBLES) 
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
     
 #  Discretization   
@@ -40,21 +40,21 @@ nd = 3
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,2)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,2)     	 
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3) 	    
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:    
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)    
     else:    
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis	
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis	
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 
@@ -71,8 +71,8 @@ if useHex:
     comm=Comm.get()	
     if comm.isMaster():	
         size = numpy.array([[0.520,0.510   ,0.520],
-	                    [0.330,0.335833,0.330],
-			    [0.320,0.325   ,0.000]])/float(Refinement)
+                            [0.330,0.335833,0.330],
+                            [0.320,0.325   ,0.000]])/float(Refinement)
         numpy.savetxt('size.mesh', size)
         failed = os.system("../../scripts/marinHexMesh")      
      
@@ -147,8 +147,8 @@ else:
                                                  facets=facets,
                                                  facetFlags=facetFlags,
                                                  holes=holes)
-						 
-						 
+                                                 
+                                                 
     #go ahead and add a boundary tags member 
     domain.boundaryTags = boundaryTags
     domain.writePoly("mesh")

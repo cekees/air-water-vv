@@ -34,13 +34,13 @@ Running the test case
 The test case comprises a simple rectangular tank with generation zone at the left side ('x-') and absoprtion zone at the right side ('x+'). To run the test case type:
 
 ```
-parun regular_waves.py --TwoPhaseFlow -f  -v -D result_folder
+parun regular_waves.py --TwoPhaseFlow -v -D result_folder
 ```
 
 Wave properties can be modified by the commandline, using for example:
 
 ```
-parun regular_waves.py --TwoPhaseFlow -f regular_waves.py -v -D result_folder -C "T=2. H=0.05"
+parun regular_waves.py --TwoPhaseFlow -v -D result_folder -C "T=2. H=0.05"
 ```
 
 To run in parallel (example with mpirun and 12 processors):

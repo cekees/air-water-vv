@@ -99,7 +99,7 @@ SG=st.ShapeSTL(domain,'NWT.stl')
 
 boundaryTags= SG.boundaryTags
 
-SG.regions=np.array([[-13., 2.5, 0.], [-3., 2.5, 0.], [9., 2.5, 0.]]
+SG.regions=np.array([[-13., 2.5, 0.], [-3., 2.5, 0.], [9., 2.5, 0.]])
 SG.regionFlags=np.array([1, 2, 3])
 
 dragAlpha = 5*(2*np.pi/period)/nu_0
@@ -109,7 +109,7 @@ xTop = max(SG.vertices[:,1])
 
 ##Relaxation Zones
 SG.setGenerationZones(flags=1,
-                      epsFact_solid=2.,
+                      epsFact_porous=2.,
                       center=np.array([-13., 2.5, 0.]),
                       orientation=np.array([1., 0., 0.]),
                       waves=wave,
@@ -119,7 +119,7 @@ SG.setGenerationZones(flags=1,
                       )
 
 SG.setAbsorptionZones(flags=3,
-                      epsFact_solid=4.,
+                      epsFact_porous=4.,
                       center=np.array([9., 2.5, 0.]),
                       orientation=np.array([-1., 0., 0.]),
                       dragAlpha=dragAlpha,
@@ -184,51 +184,43 @@ class P_IC:
                                        (smoothedHeaviside_integral(smoothing, phi_top)-
                                         smoothedHeaviside_integral(smoothing, phi)))
 
-initialConditions = {'pressure': P_IC(),
-                     'vel_u': At_Rest(),
-                     'vel_v': At_Rest(),
-                     'vel_w':At_Rest(),
-                     'vof': VF_IC(),
-                     'ncls': PHI_IC(),
-                     'rdls': PHI_IC()}
-outputStepping = TpFlow.OutputStepping(final_time=opts.T,
-                                       dt_init=opts.dt_init,
-                                       dt_output=opts.dt_output,
-                                       nDTout=None,
-                                       dt_fixed=None)
 
-myTpFlowProblem = TpFlow.TwoPhaseFlowProblem(ns_model=None,
-                                             ls_model=None,
-                                             nd=domain.nd,
-                                             cfl=opts.cfl,
-                                             outputStepping=outputStepping,
-                                             structured=False,
-                                             he=opts.he,
-                                             nnx=None,
-                                             nny=None,
-                                             nnz=None,
-                                             domain=domain,
-                                             initialConditions=initialConditions,
-                                             boundaryConditions=None)
+# Two-phase flow problem
+myTpFlowProblem = TpFlow.TwoPhaseFlowProblem()
+myTpFlowProblem.domain = domain
+myTpFlowProblem.outputStepping.final_time = opts.T
+myTpFlowProblem.outputStepping.dt_init = opts.dt_init
+myTpFlowProblem.outputStepping.dt_output = opts.dt_output
+myTpFlowProblem.outputStepping.systemStepExact = True
 
-params = myTpFlowProblem.Parameters
-myTpFlowProblem.useSuperLu=False#True
-params.physical.densityA = opts.rho_0  # water
-params.physical.densityB = opts.rho_1  # air
-params.physical.kinematicViscosityA = opts.nu_0  # water
-params.physical.kinematicViscosityB = opts.nu_1  # air
-params.physical.surf_tension_coeff = opts.sigma_01
+physics = myTpFlowProblem.SystemPhysics
+physics.setDefaults()
+physics.useDefaultModels(flowModel=0, interfaceModel=0)
+myTpFlowProblem.SystemNumerics.cfl = opts.cfl
 
-m = params.Models
+m = physics.modelDict
+m['flow'].p.initialConditions['p'] = P_IC()
+m['flow'].p.initialConditions['u'] = At_Rest()
+m['flow'].p.initialConditions['v'] = At_Rest()
+m['flow'].p.initialConditions['w'] = At_Rest()
+m['vof'].p.initialConditions['vof'] = VF_IC()
+m['ncls'].p.initialConditions['phi'] = PHI_IC()
+m['rdls'].p.initialConditions['phid'] = PHI_IC()
+m['mcorr'].p.initialConditions['phiCorr'] = At_Rest()
 
-m.rdls.p.CoefficientsOptions.epsFact=0.75
-m.rans2p.index = 0
-m.vof.index = 1
-m.ncls.index = 2
-m.rdls.index = 3
-m.mcorr.index = 4
-m.rdls.n.maxLineSearches=0
-m.rdls.n.maxNonlinearIts=50
+myTpFlowProblem.SystemNumerics.useSuperlu = False
+physics.rho_0 = opts.rho_0
+physics.rho_1 = opts.rho_1
+physics.nu_0 = opts.nu_0
+physics.nu_1 = opts.nu_1
+physics.surf_tension_coeff = opts.sigma_01
+# y is vertical here; setDefaults() would put gravity along -z in 3D
+physics.gravity = np.array(opts.g)
+
+
+m['rdls'].p.coefficients.epsFact=0.75
+m['rdls'].n.maxLineSearches=0
+m['rdls'].n.maxNonlinearIts=50
 #pdb.set_trace()
 
 
@@ -238,5 +230,5 @@ mesh_fileprefix = 'mesh_he_'+str(int(opts.he*1000))
 domain.MeshOptions.setOutputFiles(name=mesh_fileprefix)
 st.assembleDomain(domain)
 #pdb.set_trace()
-myTpFlowProblem.Parameters.Models.rans2p.auxiliaryVariables += domain.auxiliaryVariables['twp']
+m['flow'].auxiliaryVariables += domain.auxiliaryVariables['twp']
 

@@ -30,7 +30,7 @@ def signalFilter(time,data,minfreq,maxfreq, cutoffMax, cutoffMin):
     tailMin = minfreq - cutoffMin
 
     if(tailMax < 0 or tailMin < 0):
-        print "cutoffMax is less than maxfreq or cutoffMin larger than minfreq, this should not be the case"
+        print("cutoffMax is less than maxfreq or cutoffMin larger than minfreq, this should not be the case")
     
     for ff in freq:
         ii+=1

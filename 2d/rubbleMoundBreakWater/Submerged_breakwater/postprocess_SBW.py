@@ -33,7 +33,7 @@ def readProbeFile(filename):
             probex.append(float(header[ii+1]))
             probey.append(float(header[ii+2]))
             probez.append(float(header[ii+3]))
-        probeCoord = zip(np.array(probex),np.array(probey),np.array(probez))
+        probeCoord = list(zip(np.array(probex),np.array(probey),np.array(probez)))
         datalist = [probeType,probeCoord,time,data]
         return datalist
 
@@ -81,4 +81,4 @@ for i in range(len(ETA)):
     zc.append(zeroCrossing(time,ETA[i]))
 zc = np.array(zc)
 K = np.mean(zc[2:][:,1])/sbw.opts.wave_height
-print 'Transmission coefficient'+'\t'+'='+'\t'+str(K)
+print('Transmission coefficient'+'\t'+'='+'\t'+str(K))

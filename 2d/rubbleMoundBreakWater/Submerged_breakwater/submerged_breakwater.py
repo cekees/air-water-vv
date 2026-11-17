@@ -82,6 +82,7 @@ wave = wt.MonochromaticWaves(period=period, waveHeight=height, mwl=mwl, depth=de
                              waveType=opts.wave_type,
                              Ycoeff=np.array(opts.Ycoeff),
                              Bcoeff=np.array(opts.Bcoeff),
+                             autoFenton=False,  # use the coefficients given above
                              Nf=len(opts.Bcoeff),
                              fast=opts.fast)
 wavelength = wave.wavelength
@@ -206,7 +207,7 @@ tank.attachLineIntegralGauges('vof', gauges=((('vof',),columnLinesG),), fileName
 
 # ----- ASSEMBLE DOMAIN ----- #
 
-tank.facets = np.array([[[0, 1, 2, 3]]]+[[[i for i in range(8)]]]+[[[7, 8, 9, 6]]]+[[[4, 10, 11, 5]]])
+tank.facets = np.array([[[0, 1, 2, 3]]]+[[[i for i in range(8)]]]+[[[7, 8, 9, 6]]]+[[[4, 10, 11, 5]]], dtype=object)
 
 domain.MeshOptions.use_gmsh = opts.use_gmsh
 domain.MeshOptions.genMesh = opts.gen_mesh
@@ -216,50 +217,53 @@ st.assembleDomain(domain)
 
 
 # ----- REFINEMENT OPTIONS ----- #
+# gmsh refinement needs py2gmsh; its current API (Curve, CurveLoop, Field)
+# no longer matches MeshRefinement.py, so use_gmsh=False skips it (Triangle).
+if opts.use_gmsh:
 
-import py2gmsh 
-from MeshRefinement import geometry_to_gmsh 
-mesh = geometry_to_gmsh(domain)
+    import py2gmsh 
+    from MeshRefinement import geometry_to_gmsh 
+    mesh = geometry_to_gmsh(domain)
 
-field_list = []
-box_size = 0.07
+    field_list = []
+    box_size = 0.07
 
-box = py2gmsh.Fields.Box(mesh=mesh)
-box.VIn = 0.02 #he-he/4.
-box.VOut = he
-box.XMin = -opts.Lgen*wavelength
-box.XMax = tank_dim[0]+opts.Labs*wavelength
-box.YMin = waterLevel-box_size
-box.YMax = waterLevel+box_size
-field_list += [box]
+    box = py2gmsh.Fields.Box(mesh=mesh)
+    box.VIn = 0.02 #he-he/4.
+    box.VOut = he
+    box.XMin = -opts.Lgen*wavelength
+    box.XMax = tank_dim[0]+opts.Labs*wavelength
+    box.YMin = waterLevel-box_size
+    box.YMax = waterLevel+box_size
+    field_list += [box]
 
-p0 = py2gmsh.Entity.Point([-opts.Lgen*wavelength, waterLevel+box_size, 0.], mesh=mesh)
-p1 = py2gmsh.Entity.Point([tank_dim[0]+opts.Labs*wavelength, waterLevel+box_size, 0.], mesh=mesh)
-p2 = py2gmsh.Entity.Point([-opts.Lgen*wavelength, waterLevel-box_size, 0.], mesh=mesh)
-p3 = py2gmsh.Entity.Point([tank_dim[0]+opts.Labs*wavelength, waterLevel-box_size, 0.], mesh=mesh)
-l1 = py2gmsh.Entity.Line([p0, p1], mesh=mesh)
-l2 = py2gmsh.Entity.Line([p2, p3], mesh=mesh)
+    p0 = py2gmsh.Entity.Point([-opts.Lgen*wavelength, waterLevel+box_size, 0.], mesh=mesh)
+    p1 = py2gmsh.Entity.Point([tank_dim[0]+opts.Labs*wavelength, waterLevel+box_size, 0.], mesh=mesh)
+    p2 = py2gmsh.Entity.Point([-opts.Lgen*wavelength, waterLevel-box_size, 0.], mesh=mesh)
+    p3 = py2gmsh.Entity.Point([tank_dim[0]+opts.Labs*wavelength, waterLevel-box_size, 0.], mesh=mesh)
+    l1 = py2gmsh.Entity.Line([p0, p1], mesh=mesh)
+    l2 = py2gmsh.Entity.Line([p2, p3], mesh=mesh)
 
-grading = 1.05
-bl = py2gmsh.Fields.BoundaryLayer(mesh=mesh)
-bl.hwall_n = 0.02 #he-he/4.
-bl.ratio = grading
-bl.EdgesList = [l1, l2]
-field_list += [bl]
+    grading = 1.05
+    bl = py2gmsh.Fields.BoundaryLayer(mesh=mesh)
+    bl.hwall_n = 0.02 #he-he/4.
+    bl.ratio = grading
+    bl.EdgesList = [l1, l2]
+    field_list += [bl]
 
-fmin = py2gmsh.Fields.Min(mesh=mesh)
-fmin.FieldsList = field_list
-mesh.setBackgroundField(fmin)
+    fmin = py2gmsh.Fields.Min(mesh=mesh)
+    fmin.FieldsList = field_list
+    mesh.setBackgroundField(fmin)
 
-mesh.Options.Mesh.CharacteristicLengthMax = he
+    mesh.Options.Mesh.CharacteristicLengthMax = he
 
-domain.MeshOptions.genMesh = opts.gen_mesh
-domain.MeshOptions.use_gmsh = opts.use_gmsh
-domain.use_gmsh = opts.use_gmsh
+    domain.MeshOptions.genMesh = opts.gen_mesh
+    domain.MeshOptions.use_gmsh = opts.use_gmsh
+    domain.use_gmsh = opts.use_gmsh
 
-geofile = 'mesh'
-mesh.writeGeo(geofile+'.geo')
-domain.geofile = geofile
+    geofile = 'mesh'
+    mesh.writeGeo(geofile+'.geo')
+    domain.geofile = geofile
 
 
 ##########################################
@@ -318,15 +322,15 @@ useRANS = opts.useRANS # 0 -- None
             # 3 -- K-Omega, 1988
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 #  Discretization
@@ -334,22 +338,22 @@ nd = 2
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,3)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,3)
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3)
          #elementBoundaryQuadrature = SimplexLobattoQuadrature(nd-1,1)
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)
     else:
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 

@@ -53,5 +53,5 @@ nl_atol_res = ct.ns_nl_atol_res
 useEisenstatWalker = False#True
 maxNonlinearIts = 50
 maxLineSearches = 0
-conservativeFlux = {0:'pwl-bdm-opt'}
+conservativeFlux = None  # PUMI meshes are element-partitioned; proteus 2.0 refuses conservativeFlux there
 auxiliaryVariables=[ct.bar]

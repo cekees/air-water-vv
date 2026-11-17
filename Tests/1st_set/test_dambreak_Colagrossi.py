@@ -7,7 +7,6 @@ from proteus import Comm
 comm = Comm.get()
 #import dambreak_Colagrossi_so
 import numpy as np
-import tables
 import collections as cll
 import csv
 from proteus.test_utils import TestTools

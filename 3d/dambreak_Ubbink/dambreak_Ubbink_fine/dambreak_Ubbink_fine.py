@@ -25,15 +25,15 @@ useRANS = 0 # 0 -- None
             # 2 -- K-Omega
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()    
     
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES 
+    print("INVALID: useRBLES" + useRBLES) 
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
     
 #  Discretization   
@@ -41,21 +41,21 @@ nd = 3
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,2)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,2)     	 
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3) 	    
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:    
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)    
     else:    
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis	
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis	
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
     
@@ -92,7 +92,7 @@ class PointGauges(AV_base):
         self.flags={}
         self.files={}#will be opened  later
         pointFlag=100
-        for name,point in self.locations.iteritems():
+        for name,point in self.locations.items():
             self.flags[name] = pointFlag
             pointFlag += 1
     def attachModel(self,model,ar):
@@ -107,10 +107,10 @@ class PointGauges(AV_base):
         return self    
     def calculate(self):
         import numpy as  np
-        for name,flag  in self.flags.iteritems():
+        for name,flag  in self.flags.items():
             vnMask = self.vertexFlags == flag
             if vnMask.any():
-                if not self.files.has_key(name):
+                if name not in self.files:
                     self.files[name] = open(name+'.txt','w')
                 self.files[name].write('%22.16e %22.16e %22.16e  %22.16e  %22.16e\n' % (self.vertices[vnMask,0],self.vertices[vnMask,1],self.p[vnMask],self.u[vnMask],self.v[vnMask]))
 
@@ -123,7 +123,7 @@ class LineGauges(AV_base):
         self.linepoints={}
         self.files={}#while open later
         pointFlag=1000
-        for name,(pStart,pEnd) in self.endpoints.iteritems():
+        for name,(pStart,pEnd) in self.endpoints.items():
             self.flags[name] = pointFlag
             p0 = np.array(pStart)
             direction = np.array(pEnd) - p0
@@ -143,12 +143,12 @@ class LineGauges(AV_base):
         return self    
     def calculate(self):
         import numpy as  np
-        for name,flag  in self.flags.iteritems():
+        for name,flag  in self.flags.items():
             vnMask = self.vertexFlags == flag
             if vnMask.any():
-                if not self.files.has_key(name):
+                if name not in self.files:
                     self.files[name] = open(name+'.txt','w')
-                for x,y,p,u,v in zip(self.vertices[vnMask,0],self.vertices[vnMask,1],self.p[vnMask],self.u[vnMask],self.v[vnMask]):
+                for x,y,p,u,v in list(zip(self.vertices[vnMask,0],self.vertices[vnMask,1],self.p[vnMask],self.u[vnMask],self.v[vnMask])):
                     self.files[name].write('%22.16e %22.16e %22.16e  %22.16e  %22.16e\n' % (x,y,p,u,v))
 
 class LineGauges_phi(AV_base):
@@ -160,7 +160,7 @@ class LineGauges_phi(AV_base):
         self.linepoints={}
         self.files={}#while open later
         pointFlag=1000
-        for name,(pStart,pEnd) in self.endpoints.iteritems():
+        for name,(pStart,pEnd) in self.endpoints.items():
             self.flags[name] = pointFlag
             p0 = np.array(pStart)
             direction = np.array(pEnd) - p0
@@ -178,12 +178,12 @@ class LineGauges_phi(AV_base):
         return self    
     def calculate(self):
         import numpy as  np
-        for name,flag  in self.flags.iteritems():
+        for name,flag  in self.flags.items():
             vnMask = self.vertexFlags == flag
             if vnMask.any():
-                if not self.files.has_key(name):
+                if name not in self.files:
                     self.files[name] = open(name+'_phi.txt','w')
-                for x,y,phi in zip(self.vertices[vnMask,0],self.vertices[vnMask,1],self.phi[vnMask]):
+                for x,y,phi in list(zip(self.vertices[vnMask,0],self.vertices[vnMask,1],self.phi[vnMask])):
                     self.files[name].write('%22.16e %22.16e %22.16e\n' % (x,y,phi))
 
 #pointGauges = PointGauges(gaugeLocations={'pointGauge_pressure':(0.293,0.05,0.0)})
@@ -223,7 +223,7 @@ else:
                      boundaryTags['top'],
                      boundaryTags['top']]
 
-        for v,vF in zip(vertices,vertexFlags):
+        for v,vF in list(zip(vertices,vertexFlags)):
             vertices.append([v[0],L[1],v[2]])
             vertexFlags.append(vF)
 
@@ -253,7 +253,7 @@ else:
 
         frontFacet=[]
         backFacet=[]
-        for s,sF in zip(segments,segmentFlags):
+        for s,sF in list(zip(segments,segmentFlags)):
             facets.append([[s[0],s[1],s[1]+8,s[0]+8]])
             facetFlags.append(sF)
             frontFacet.append(s[0])

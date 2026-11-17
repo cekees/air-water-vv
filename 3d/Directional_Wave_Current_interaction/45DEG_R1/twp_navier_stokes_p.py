@@ -44,7 +44,7 @@ if spongeLayer or levee or slopingSpongeLayer:
                                         porosityTypes=porosityTypes,
                                         dragAlphaTypes=dragAlphaTypes,
                                         dragBetaTypes=dragBetaTypes,
-                                        epsFact_solid = epsFact_solidTypes)
+                                        epsFact_porous = epsFact_solidTypes)  # 1.x epsFact_solid (zone smoothing) is epsFact_porous in 2.0
 else:
     coefficients = RANS2P.Coefficients(epsFact=epsFact_viscosity,
                                        sigma=0.0,

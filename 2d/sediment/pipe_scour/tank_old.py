@@ -328,13 +328,13 @@ if opts.current:
 
     if opts.GenZone == True:
         omega=1.0 
-        tank.setAbsorptionZones(flags=1, epsFact_solid=float(0.2/2.), dragAlpha=10.*omega/nu_0,
+        tank.setAbsorptionZones(flags=1, epsFact_porous=float(0.2/2.), dragAlpha=10.*omega/nu_0,
                             orientation=[1., 0.], center=(float(0.2/2.), 0., 0.),
                             )
 
     if opts.AbsZone == True:
         omega= 1.0
-        tank.setAbsorptionZones(flags=3, epsFact_solid=float(0.2/2.), dragAlpha=10.*omega/nu_0,
+        tank.setAbsorptionZones(flags=3, epsFact_porous=float(0.2/2.), dragAlpha=10.*omega/nu_0,
                             orientation=[-1., 0.], center=(float(tank_dim[0]-0.2/2.), 0., 0.),
                             )
 
@@ -444,15 +444,15 @@ STABILIZATION_TYPE = 0 #0: SUPG, 1: EV via weak residual, 2: EV via strong resid
 
 # Input checks
 if spaceOrder not in [1, 2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 #  Discretization

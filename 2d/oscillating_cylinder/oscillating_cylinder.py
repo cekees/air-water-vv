@@ -274,10 +274,6 @@ class AtRest:
     def uOfXT(self, x, t):
         return 0.0
 
-initialConditions = {'pressure': P_IC(),
-                     'vel_u': AtRest(),
-                     'vel_v': AtRest(),
-                     'vel_w': AtRest()}
 class VOF_IC:
     def uOfXT(self,x,t):
         return smoothedHeaviside(opts.ecH * he, signedDistance(x))
@@ -286,9 +282,6 @@ class LS_IC:
     def uOfXT(self,x,t):
         return signedDistance(x)
 
-initialConditions['vof'] = VOF_IC()
-initialConditions['ncls'] = LS_IC()
-initialConditions['rdls'] = LS_IC()
 
 """
 ################################        Gauges      ################################
@@ -313,49 +306,48 @@ levelset_output=ga.PointGauges(gauges=((('phi',),PG),
 Duration= opts.Tend/opts.fract
 dt_output = opts.Tt[1]/opts.Np
 
-outputStepping = TpFlow.OutputStepping(final_time=Duration,
-                                       dt_init=opts.dt_init,
-                                       # cfl=cfl,
-                                       dt_output=dt_output,
-                                       nDTout=None,
-                                       dt_fixed=None)
 
-myTpFlowProblem = TpFlow.TwoPhaseFlowProblem(ns_model=None,
-                                             ls_model=None,
-                                             nd=domain.nd,
-                                             cfl=opts.cfl,
-                                             outputStepping=outputStepping,
-                                             structured=False,
-                                             he=he,
-                                             nnx=None,
-                                             nny=None,
-                                             nnz=None,
-                                             domain=domain,
-                                             initialConditions=initialConditions,
-                                             boundaryConditions=None, 
-                                             )
+# Two-phase flow problem
+myTpFlowProblem = TpFlow.TwoPhaseFlowProblem()
+myTpFlowProblem.domain = domain
+myTpFlowProblem.outputStepping.final_time = Duration
+myTpFlowProblem.outputStepping.dt_init = opts.dt_init
+myTpFlowProblem.outputStepping.dt_output = dt_output
+myTpFlowProblem.outputStepping.systemStepExact = True
 
-params = myTpFlowProblem.Parameters
+physics = myTpFlowProblem.SystemPhysics
+physics.setDefaults()
+physics.movingDomain = opts.movingDomain
+if opts.movingDomain:
+    from proteus.TwoPhaseFlow.utils import Parameters
+    physics.addModel(Parameters.ParametersModelMoveMeshElastic, 'moveMeshElastic')
+physics.useDefaultModels(flowModel=0, interfaceModel=0)
+myTpFlowProblem.SystemNumerics.cfl = opts.cfl
 
-myTpFlowProblem.useSuperLu=False#True
-params.physical.densityA = opts.rho_0  # water
-params.physical.densityB = opts.rho_1  # air
-params.physical.kinematicViscosityA = opts.nu_0  # water
-params.physical.kinematicViscosityB = opts.nu_1  # air
-params.physical.surf_tension_coeff = opts.sigma_01
+m = physics.modelDict
+if opts.movingDomain:
+    m['moveMeshElastic'].p.initialConditions['hx'] = AtRest()
+    m['moveMeshElastic'].p.initialConditions['hy'] = AtRest()
+m['flow'].p.initialConditions['p'] = P_IC()
+m['flow'].p.initialConditions['u'] = AtRest()
+m['flow'].p.initialConditions['v'] = AtRest()
+m['vof'].p.initialConditions['vof'] = VOF_IC()
+m['ncls'].p.initialConditions['phi'] = LS_IC()
+m['rdls'].p.initialConditions['phid'] = LS_IC()
+m['mcorr'].p.initialConditions['phiCorr'] = AtRest()
 
-# index in order of
-m = params.Models
-m.moveMeshElastic.index=0
-m.rans2p.index = 1
-m.vof.index = 2
-m.ncls.index = 3
-m.rdls.index = 4
-m.mcorr.index = 5
+
+myTpFlowProblem.SystemNumerics.useSuperlu = False
+physics.rho_0 = opts.rho_0
+physics.rho_1 = opts.rho_1
+physics.nu_0 = opts.nu_0
+physics.nu_1 = opts.nu_1
+physics.surf_tension_coeff = opts.sigma_01
+
 
 # Assemble domain
 domain.MeshOptions.he = he
 st.assembleDomain(domain)
-myTpFlowProblem.Parameters.Models.rans2p.auxiliaryVariables += domain.auxiliaryVariables['twp']
+m['flow'].auxiliaryVariables += domain.auxiliaryVariables['twp']
 
 

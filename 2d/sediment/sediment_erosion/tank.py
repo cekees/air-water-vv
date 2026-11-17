@@ -310,9 +310,9 @@ tank = st.CustomShape(domain, vertices=vertices, vertexFlags=vertexFlags,
                       regions=regions, regionFlags=regionFlags,
                       boundaryTags=boundaryTags, boundaryOrientations=boundaryOrientations)
 
-kWallWall = bc.kWall(Y=Y_, Yplus=Yplus, b_or=boundaryOrientations['y-'], nu=nu_0)
+kWallWall = bc.kWall(Y=Y_, Yplus=Yplus, nu=nu_0)
 kWalls = [kWallWall]
-wallWall = bc.WallFunctions(turbModel='ke', kWall=kWallWall, b_or=boundaryOrientations['y-'], Y=Y_, Yplus=Yplus, U0=[opts.inflow_vel, 0. , 0.], nu=nu_0, Cmu=opts.Cmu, K=opts.K, B=opts.B)
+wallWall = bc.WallFunctions(turbModel='ke', kWall=kWallWall, Y=Y_, Yplus=Yplus, U0=[opts.inflow_vel, 0. , 0.], nu=nu_0, Cmu=opts.Cmu, K=opts.K, B=opts.B)
 walls = [wallWall]
 
 
@@ -444,11 +444,11 @@ STABILIZATION_TYPE = 0 #0: SUPG, 1: EV via weak residual, 2: EV via strong resid
 
 # Input checks
 if spaceOrder not in [1, 2]:
-    print("INVALID: spaceOrder" + spaceOrder)
+    print(("INVALID: spaceOrder" + spaceOrder))
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print("INVALID: useRBLES" + useRBLES)
+    print(("INVALID: useRBLES" + useRBLES))
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:

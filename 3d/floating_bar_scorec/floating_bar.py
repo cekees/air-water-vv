@@ -10,7 +10,7 @@ from proteus.Profiling import logEvent
 from proteus.default_n import *
 from proteus.ctransportCoefficients import smoothedHeaviside
 from proteus.ctransportCoefficients import smoothedHeaviside_integral
-from proteus.MeshAdaptPUMI import MeshAdaptPUMI
+from proteus.MeshAdaptPUMI import MeshAdapt
 
 from proteus import Context
 opts=Context.Options([
@@ -98,21 +98,37 @@ for boundary in boundaries:
   else:
     faceList.append([])
 
-domain = Domain.PUMIDomain(dim=3)
+domain = Domain.PUMIDomain(dim=3, manager=MeshAdapt.AdaptManager())
 domain.faceList = faceList
+domain.boundaryLabels = [boundaryTags[b] for b in boundaries]  # faceList[i] -> boundaryLabels[i]
 
 adaptMesh = True
 adaptMesh_nSteps = 10
 adaptMesh_numIter = 3
 
-domain.PUMIMesh = MeshAdaptPUMI.MeshAdaptPUMI(hmax=he,hmin=he,
-                                              numIter=adaptMesh_numIter,sfConfig="farhad")
-domain.PUMIMesh.loadModelAndMesh("floating_bar_3d.dmg",
-                                 "floating_bar_3d.smb")
+# proteus 2.0 PUMI interface (AdaptManager); see proteus's
+# test/MeshAdaptPUMI/gauge_compare/dambreak_Colagrossi_2D. Model indices follow
+# floating_bar_so.py: moveMesh 0, twp 1, vof 2, ls 3, redist 4, ls_consrv 5.
+domain.AdaptManager.PUMIAdapter.loadModelAndMesh(b"floating_bar_3d.dmg",
+                                                 b"floating_bar_3d.smb")
+domain.AdaptManager.modelDict = {'flow':1,'phase':3,'corrections':[4,5]}
+domain.AdaptManager.sizeInputs = [b'interface']
+domain.AdaptManager.adapt = 1 if adaptMesh else 0
+domain.AdaptManager.hmax = he
+domain.AdaptManager.hmin = he
+domain.AdaptManager.hphi = he
+domain.AdaptManager.numIterations = adaptMesh_numIter
+# the .dmg is the geometric model: classify boundaries with faceList
+# (the AdaptManager default, 2, uses a reconstructed model and ignores faceList)
+domain.AdaptManager.reconstructedFlag = 0
+domain.AdaptManager.PUMIAdapter.setAdaptProperties(domain.AdaptManager)
 
 restrictFineSolutionToAllMeshes=False
 parallelPartitioningType = MeshTools.MeshParallelPartitioningTypes.element
 nLayersOfOverlapForParallel = 0
+# proteus 2.0 checks that the domain's mesh options match the numerics
+domain.MeshOptions.setParallelPartitioningType('element')
+domain.MeshOptions.nLayersOfOverlapForParallel = nLayersOfOverlapForParallel
 
 quad_order = 3
 
@@ -158,15 +174,15 @@ useRANS = 0 # 0 -- None
             # 3 -- K-Omega, 1988
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 #  Discretization
@@ -174,22 +190,22 @@ nd = 3
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,3)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,3)
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3)
          #elementBoundaryQuadrature = SimplexLobattoQuadrature(nd-1,1)
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)
     else:
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 
@@ -276,68 +292,29 @@ def twpflowPressure_init(x,t):
     return p_L -g[2]*(rho_0*(phi_L - phi)+(rho_1 -rho_0)*(smoothedHeaviside_integral(epsFact_consrv_heaviside*he,phi_L)
                                                          -smoothedHeaviside_integral(epsFact_consrv_heaviside*he,phi)))
 
-import ode
-
-def near_callback(args, geom1, geom2):
-    """Callback function for the collide() method.
-
-    This function checks if the given geoms do collide and
-    creates contact joints if they do.
-    """
-
-    # Check if the objects do collide
-    contacts = ode.collide(geom1, geom2)
-
-    # Create contact joints
-    world,contactgroup = args
-    for c in contacts:
-        c.setBounce(0.2)
-        c.setMu(5000)
-        j = ode.ContactJoint(world, contactgroup, c)
-        j.attach(geom1.getBody(), geom2.getBody())
+import pychrono as chrono
 
 class RigidBar(AuxiliaryVariables.AV_base):
+    """Rigid bar driven by the fluid forces on boundary flag 7, integrated with
+    Chrono (pychrono). This replaces the PyODE body of the original deck with the
+    same interface: position, velocity, rotation, and rel_point_pos() for the
+    moving mesh (moveMesh_p.py)."""
     def __init__(self,density=1.0,bar_center=(0.0,0.0,0.0),bar_dim=(1.0,1.0,1.0),barycenters=None,he=1.0,cfl_target=0.9,dt_init=0.001):
         self.dt_init = dt_init
         self.he=he
         self.cfl_target=cfl_target
-        self.world = ode.World()
-        #self.world.setERP(0.8)
-        #self.world.setCFM(1E-5)
-        self.world.setGravity(g)
         self.g = np.array([g[0],g[1],g[2]])
-        self.space = ode.Space()
-        eps_x = L[0]- 0.75*L[0]
-        eps_y = L[1]- 0.75*L[1]
-        #tank geometry
-        #self.tankWalls = [ode.GeomPlane(self.space, (1,0,0) ,x_ll[0]+eps_x),
-        #                  ode.GeomPlane(self.space, (-1,0,0),-(x_ll[0]+L[0]-eps_x)),
-        #ode.GeomPlane(self.space, (0,1,0) ,x_ll[1]+eps_y),
-        #                  ode.GeomPlane(self.space, (0,-1,0) ,-(x_ll[1]+L[1]-eps_y))]
-        #mass/intertial tensor of rigid bar
-        #eps_x = L[0]- 0.45*L[0]
-        #eps_y = L[1]- 0.45*L[1]
-        #self.tankWalls = [ode.GeomPlane(space, (1,0,0) ,x_ll[0]+eps_x),
-        #                  ode.GeomPlane(space, (-1,0,0),-(x_ll[0]+L[0]-eps_x)),
-        #                  ode.GeomPlane(space, (0,1,0) ,x_ll[1]+eps_y),
-        #                  ode.GeomPlane(space, (0,-1,0) ,-(x_ll[1]+L[1]-eps_y))]
-        #self.tank = ode.GeomBox(self.space,(0.45,0.45,0.3))
-        #self.tank.setPosition((0.5,0.5,0.6))
-        #self.contactgroup = ode.JointGroup()
-        self.M = ode.Mass()
+        self.system = chrono.ChSystemNSC()
+        self.system.SetGravitationalAcceleration(chrono.ChVector3d(g[0],g[1],g[2]))
+        #mass/inertia of the rigid bar: a uniform box, as ode.Mass.setBox
         self.totalMass = density*bar_dim[0]*bar_dim[1]*bar_dim[2]
-        self.M.setBox(density,bar_dim[0],bar_dim[1],bar_dim[2])
-        #bar body
-        self.body = ode.Body(self.world)
-        self.body.setMass(self.M)
-        self.body.setFiniteRotationMode(1)
-        #bar geometry
-        self.bar = ode.GeomBox(self.space,bar_dim)
-        self.bar.setBody(self.body)
-        self.bar.setPosition(bar_center)
+        material = chrono.ChContactMaterialNSC()
+        self.body = chrono.ChBodyEasyBox(bar_dim[0],bar_dim[1],bar_dim[2],density,
+                                         False,False,material)
+        self.body.SetPos(chrono.ChVector3d(*bar_center))
+        self.system.Add(self.body)
+        self.accumulator = self.body.AddAccumulator()
         self.boxsize = (bar_dim[0],bar_dim[1],bar_dim[2])
-        #contact joints
-        self.contactgroup = ode.JointGroup()
         self.last_position=bar_center
         self.position=bar_center
         self.last_velocity=(0.0,0.0,0.0)
@@ -352,15 +329,21 @@ class RigidBar(AuxiliaryVariables.AV_base):
         self.last_F = np.zeros(3,'d')
         self.last_M = np.zeros(3,'d')
 
+    def rel_point_pos(self,p):
+        """World position of the body-frame point p (ode.Body.getRelPointPos)."""
+        q = self.body.TransformPointLocalToParent(chrono.ChVector3d(p[0],p[1],p[2]))
+        return np.array([q.x,q.y,q.z])
+
     def attachModel(self,model,ar):
         self.model=model
         self.ar=ar
         self.writer = Archiver.XdmfWriter()
         self.nd = model.levelModelList[-1].nSpace_global
         m = self.model.levelModelList[-1]
-        flagMax = max(m.mesh.elementBoundaryMaterialTypes)
-        flagMin = min(m.mesh.elementBoundaryMaterialTypes)
-        assert(flagMin >= 0)
+        # on a partitioned mesh some element boundaries have a negative flag
+        # (boundaries between subdomains); only the physical flags matter here
+        flags = m.mesh.elementBoundaryMaterialTypes
+        flagMax = max(flags[flags >= 0])
         assert(flagMax <= 7)
         self.nForces=flagMax+1
         assert(self.nForces <= 8)
@@ -384,25 +367,25 @@ class RigidBar(AuxiliaryVariables.AV_base):
             dt = self.dt_init
         F = self.model.levelModelList[-1].coefficients.netForces_p[7,:] + self.model.levelModelList[-1].coefficients.netForces_v[7,:];
         M = self.model.levelModelList[-1].coefficients.netMoments[7,:]
-        logEvent("x Force " +`self.model.stepController.t_model_last`+" "+`F[0]`)
-        logEvent("y Force " +`self.model.stepController.t_model_last`+" "+`F[1]`)
-        logEvent("z Force " +`self.model.stepController.t_model_last`+" "+`F[2]`)
-        logEvent("x Moment " +`self.model.stepController.t_model_last`+" "+`M[0]`)
-        logEvent("y Moment " +`self.model.stepController.t_model_last`+" "+`M[1]`)
-        logEvent("z Moment " +`self.model.stepController.t_model_last`+" "+`M[2]`)
-        logEvent("dt " +`dt`)
+        logEvent("x Force " +repr(self.model.stepController.t_model_last)+" "+repr(F[0]))
+        logEvent("y Force " +repr(self.model.stepController.t_model_last)+" "+repr(F[1]))
+        logEvent("z Force " +repr(self.model.stepController.t_model_last)+" "+repr(F[2]))
+        logEvent("x Moment " +repr(self.model.stepController.t_model_last)+" "+repr(M[0]))
+        logEvent("y Moment " +repr(self.model.stepController.t_model_last)+" "+repr(M[1]))
+        logEvent("z Moment " +repr(self.model.stepController.t_model_last)+" "+repr(M[2]))
+        logEvent("dt " +repr(dt))
         scriptMotion=False
         linearOnly=False
-        if self.last_F == None:
+        if self.last_F is None:
             self.last_F = F.copy()
         if scriptMotion:
             velocity = np.array((0.0,0.3/1.0,0.0))
-            logEvent("script pos="+`(np.array(self.position)+velocity*dt).tolist()`)
-            self.body.setPosition((np.array(self.position)+velocity*dt).tolist())
-            self.body.setLinearVel(velocity)
+            logEvent("script pos="+repr((np.array(self.position)+velocity*dt).tolist()))
+            self.body.SetPos(chrono.ChVector3d(*(np.array(self.position)+velocity*dt).tolist()))
+            self.body.SetPosDt(chrono.ChVector3d(*velocity.tolist()))
         else:
             if linearOnly:
-                Fstar = 0.5*(F+self.last_F) + np.array(self.world.getGravity())
+                Fstar = 0.5*(F+self.last_F) + self.g
                 velocity_last = np.array(self.velocity)
                 velocity = velocity_last + Fstar*(dt/self.totalMass)
                 velocity[0] = 0.0
@@ -410,11 +393,11 @@ class RigidBar(AuxiliaryVariables.AV_base):
                 vnorm = np.linalg.norm(velocity,ord=2)
                 if vnorm > vmax:
                     velocity *= vmax/vnorm
-                    logEvent("Warning: limiting rigid body velocity from "+`vnorm`+" to "+`vmax`)
+                    logEvent("Warning: limiting rigid body velocity from "+repr(vnorm)+" to "+repr(vmax))
                 position_last = np.array(self.position)
                 position = position_last + 0.5*(velocity_last + velocity)*dt
-                self.body.setPosition(position.tolist())
-                self.body.setLinearVel(velocity.tolist())
+                self.body.SetPos(chrono.ChVector3d(*position.tolist()))
+                self.body.SetPosDt(chrono.ChVector3d(*velocity.tolist()))
                 msg = """
 Fstar         = {0}
 F             = {1}
@@ -436,19 +419,25 @@ position_last = {7}""".format(Fstar,F,self.last_F,dt,velocity,velocity_last,posi
                 Fstar=F#0.5*(F+self.last_F)
                 Mstar=M#0.5*(M+self.last_M)
                 for i in range(nSteps):
-                    self.body.setForce((Fstar[0]*opts.free_x[0],
-                                        Fstar[1]*opts.free_x[1],
-                                        Fstar[2]*opts.free_x[2]))
-                    self.body.setTorque((Mstar[0]*opts.free_r[0],
-                                         Mstar[1]*opts.free_r[1],
-                                         Mstar[2]*opts.free_r[2]))
-                    #self.space.collide((self.world,self.contactgroup), near_callback)
-                    self.world.step(dt/float(nSteps))
+                    self.body.EmptyAccumulator(self.accumulator)
+                    self.body.AccumulateForce(self.accumulator,
+                                              chrono.ChVector3d(Fstar[0]*opts.free_x[0],
+                                                                Fstar[1]*opts.free_x[1],
+                                                                Fstar[2]*opts.free_x[2]),
+                                              self.body.GetPos(), False)
+                    self.body.AccumulateTorque(self.accumulator,
+                                               chrono.ChVector3d(Mstar[0]*opts.free_r[0],
+                                                                 Mstar[1]*opts.free_r[1],
+                                                                 Mstar[2]*opts.free_r[2]),
+                                               False)
+                    self.system.DoStepDynamics(dt/float(nSteps))
         #self.contactgroup.empty()
         self.last_F[:] = F
         self.last_M[:] = M
-        x,y,z = self.body.getPosition()
-        u,v,w = self.body.getLinearVel()
+        pos = self.body.GetPos()
+        vel = self.body.GetPosDt()
+        x,y,z = pos.x,pos.y,pos.z
+        u,v,w = vel.x,vel.y,vel.z
         self.barycenters[7,0]=x
         self.barycenters[7,1]=y
         self.barycenters[7,2]=z
@@ -458,7 +447,8 @@ position_last = {7}""".format(Fstar,F,self.last_F,dt,velocity,velocity_last,posi
         self.last_rotation_inv = inv(self.last_rotation)
         self.position=(x,y,z)
         self.velocity=(u,v,w)
-        self.rotation=np.array(self.body.getRotation()).reshape(3,3)
+        R = self.body.GetRotMat()
+        self.rotation=np.array([[R[i,j] for j in range(3)] for i in range(3)])
         self.h = (self.position[0]-self.last_position[0],
                   self.position[1]-self.last_position[1],
                   self.position[2]-self.last_position[2])

@@ -56,15 +56,15 @@ useRANS = 0 # 0 -- None
 
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 
@@ -73,21 +73,21 @@ nd = 3
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,2)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,2)
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3)
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)
     else:
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 
@@ -112,7 +112,7 @@ if genMesh:
         hex=True
         domain = Domain.RectangularDomain(L)
     else:
-        bathy=np.genfromtxt("FRF_FRF_20150915_1116_NAVD88_LARC_GPS_UTC.csv", delimiter=",",skiprows=1)
+        bathy=np.genfromtxt("FRF_FRF_20150915_1116_NAVD88_LARC_GPS_UTC.csv", delimiter=",",skip_header=1)
         xmax=bathy[:,7].max()
         xmin=bathy[:,7].min()
         ymax=bathy[:,8].max()
@@ -162,7 +162,7 @@ if genMesh:
         nN_start = fineMesh.nodeArray.shape[0]
         nN = nN_start
         zTop = max(fineMesh.nodeArray[:,2].max(),fineMesh.nodeArray[:,2].min()+depth+2*waveheight)
-        for nN_bottom, n,f in zip(range(nN_start), fineMesh.nodeArray, fineMesh.nodeMaterialTypes):
+        for nN_bottom, n,f in list(zip(list(range(nN_start)), fineMesh.nodeArray, fineMesh.nodeMaterialTypes)):
             if f > 0:
                 newNodes[nN] = (n[0],n[1],zTop)
                 verticalEdges[nN_bottom] = nN
@@ -173,7 +173,7 @@ if genMesh:
             newFacets.append([[t[0],t[1],t[2]]])
             newFacetFlags.append(6)
         topConnectivity = {}
-        for edge, edgeF in zip(fineMesh.elementBoundaryNodesArray, fineMesh.elementBoundaryMaterialTypes):
+        for edge, edgeF in list(zip(fineMesh.elementBoundaryNodesArray, fineMesh.elementBoundaryMaterialTypes)):
             if edgeF > 0:
                 n00 = edge[0]
                 n10 = edge[1]
@@ -184,11 +184,11 @@ if genMesh:
                                   n11,
                                   n01]])
                 newFacetFlags.append(edgeF)
-                if topConnectivity.has_key(n11):
+                if n11 in topConnectivity:
                     topConnectivity[n11].append(n01)
                 else:
                     topConnectivity[n11] = [n01]
-                if topConnectivity.has_key(n01):
+                if n01 in topConnectivity:
                     topConnectivity[n01].append(n11)
                 else:
                     topConnectivity[n01] = [n11]
@@ -204,13 +204,13 @@ if genMesh:
         newFacetFlags.append(5)
         newVertices = []
         newVertexFlags = []
-        for n,nF in zip(fineMesh.nodeArray, fineMesh.nodeMaterialTypes):
+        for n,nF in list(zip(fineMesh.nodeArray, fineMesh.nodeMaterialTypes)):
             newVertices.append([n[0],n[1],n[2]])
             if nF > 0:
                 newVertexFlags.append(nF)
             else:
                 newVertexFlags.append(6)
-        for nN in range(len(newNodes.keys())):
+        for nN in range(len(list(newNodes.keys()))):
             newVertices.append(newNodes[nN+nN_start])
             newVertexFlags.append(5)
         xmin_new = fineMesh.nodeArray[:,0].min()
@@ -220,6 +220,9 @@ if genMesh:
 
         regions = [[0.5*(xmin+xmax),0.5*(ymin+ymax),zTop-0.001]]
         regionFlags = [1.0]
+        # plain ints: Domain.writePoly writes facet indices with repr(), which
+        # is 'np.int32(95)' for numpy integers under numpy 2 and breaks tetgen
+        newFacets = [[[int(v) for v in loop] for loop in f] for f in newFacets]
         domain = PiecewiseLinearComplexDomain(vertices=newVertices,
                                               facets=newFacets,
                                               facetHoles=None,
@@ -382,7 +385,7 @@ mwl = inflowHeightMean
 waveDir = np.array([-1,0,0])
 rec_direct = True
 window_params = None
-timeSeriesPosition = [0., 0., 0.]
+timeSeriesPosition = np.array([0., 0., 0.])
 
 tseries = TimeSeries(timeSeriesFile,
                      skiprows,
@@ -392,8 +395,8 @@ tseries = TimeSeries(timeSeriesFile,
                      mwl,       #mean water level
                      waveDir,
                      g,         #acceleration of gravity
-                     rec_direct,
-                     window_params,
+                     rec_direct=rec_direct,  # by keyword: TimeSeries now has
+                     window_params=window_params,  # cutoffTotal before these
                      )
 
 

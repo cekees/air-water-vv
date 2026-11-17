@@ -37,7 +37,7 @@ parun dambreak.py --TwoPhaseFlow  -v -D result_folder -C "mwl=0.5"
 To run in parallel (example with mpirun and 12 processors):
 
 ```
-mpirun -np 12 parun -f dambreak.py --TwoPhaseFlow  -v -D result_folder -C "mwl=0.5"
+mpirun -np 12 parun dambreak.py --TwoPhaseFlow  -v -D result_folder -C "mwl=0.5"
 ```
 
 

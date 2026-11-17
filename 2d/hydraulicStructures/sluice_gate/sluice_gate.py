@@ -102,13 +102,13 @@ timeDiscretization='be'  #'vbdf'#'be','flcbdf'
 applyCorrection = True
 # ----- INPUT CHECKS ----- #
 if spaceOrder not in [1,2]:
-    raise(ValueError("INVALID: spaceOrder(" + str(spaceOrder) + ")"))
+    raise ValueError
 
 if useRBLES not in [0.0, 1.0]:
-    raise(ValueError("INVALID: useRBLES(" + str(useRBLES) + ")"))
+    raise ValueError
 
 if useMetrics not in [0.0, 1.0]:
-    raise(ValueError("INVALID: useMetrics(" + str(useMetrics) + ")"))
+    raise ValueError
 
 # ----- DISCRETIZATION ----- #
 

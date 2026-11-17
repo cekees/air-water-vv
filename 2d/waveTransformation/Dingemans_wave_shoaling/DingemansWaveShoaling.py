@@ -71,6 +71,7 @@ if opts.waves is True:
                                  waveType=opts.wave_type,
                                  Ycoeff=np.array(opts.Ycoeff),
                                  Bcoeff=np.array(opts.Bcoeff),
+                                 autoFenton=False,  # use the coefficients given above
                                  Nf=len(opts.Bcoeff),
                                  fast=opts.fast)
     wavelength = waves.wavelength
@@ -166,7 +167,7 @@ for i in range(len(gauge_x)):
 
 tank.attachLineIntegralGauges('vof', gauges=((('vof',),column_gauge_locations),), fileName='column_gauges.csv')
 
-tank.facets = np.array([[[i for i in range(12)]]]+[[[11, 12, 13, 10]]]+[[[8, 14, 15, 9]]])
+tank.facets = np.array([[[i for i in range(12)]]]+[[[11, 12, 13, 10]]]+[[[8, 14, 15, 9]]], dtype=object)
 
 # ----- ASSEMBLE DOMAIN ----- #
 
@@ -177,51 +178,54 @@ domain.use_gmsh = opts.use_gmsh
 st.assembleDomain(domain)
 
 # ----- REFINEMENT OPTIONS ----- #
+# gmsh refinement needs py2gmsh; its current API (Curve, CurveLoop, Field)
+# no longer matches MeshRefinement.py, so use_gmsh=False skips it (Triangle).
+if opts.use_gmsh:
 
-import py2gmsh 
-from MeshRefinement import geometry_to_gmsh 
-mesh = geometry_to_gmsh(domain) 
+    import py2gmsh 
+    from MeshRefinement import geometry_to_gmsh 
+    mesh = geometry_to_gmsh(domain) 
 
-field_list = []
-box = 0.1001
+    field_list = []
+    box = 0.1001
 
-box1 = py2gmsh.Fields.Box(mesh=mesh) 
-box1.VIn = 0.03
-box1.VOut = he 
-box1.XMin = -tank_sponge[0] 
-box1.XMax = tank_dim[0]+tank_sponge[1] 
-box1.YMin = waterLevel-box 
-box1.YMax = waterLevel+box 
-field_list += [box1]
+    box1 = py2gmsh.Fields.Box(mesh=mesh) 
+    box1.VIn = 0.03
+    box1.VOut = he 
+    box1.XMin = -tank_sponge[0] 
+    box1.XMax = tank_dim[0]+tank_sponge[1] 
+    box1.YMin = waterLevel-box 
+    box1.YMax = waterLevel+box 
+    field_list += [box1]
 
-p0 = py2gmsh.Entity.Point([-tank_sponge[0], waterLevel+box, 0.], mesh=mesh)
-p1 = py2gmsh.Entity.Point([tank_dim[0]+tank_sponge[1], waterLevel+box, 0.], mesh=mesh) 
-p2 = py2gmsh.Entity.Point([-tank_sponge[0], waterLevel-box, 0.], mesh=mesh) 
-p3 = py2gmsh.Entity.Point([tank_dim[0]+tank_sponge[1], waterLevel-box, 0.], mesh=mesh) 
-l1 = py2gmsh.Entity.Line([p0, p1], mesh=mesh) 
-l2 = py2gmsh.Entity.Line([p2, p3], mesh=mesh)
+    p0 = py2gmsh.Entity.Point([-tank_sponge[0], waterLevel+box, 0.], mesh=mesh)
+    p1 = py2gmsh.Entity.Point([tank_dim[0]+tank_sponge[1], waterLevel+box, 0.], mesh=mesh) 
+    p2 = py2gmsh.Entity.Point([-tank_sponge[0], waterLevel-box, 0.], mesh=mesh) 
+    p3 = py2gmsh.Entity.Point([tank_dim[0]+tank_sponge[1], waterLevel-box, 0.], mesh=mesh) 
+    l1 = py2gmsh.Entity.Line([p0, p1], mesh=mesh) 
+    l2 = py2gmsh.Entity.Line([p2, p3], mesh=mesh)
 
-grading = 1.05
-bl2 = py2gmsh.Fields.BoundaryLayer(mesh=mesh) 
-bl2.hwall_n = 0.03 
-bl2.ratio = grading 
-bl2.EdgesList = [l1, l2] 
-field_list += [bl2] 
+    grading = 1.05
+    bl2 = py2gmsh.Fields.BoundaryLayer(mesh=mesh) 
+    bl2.hwall_n = 0.03 
+    bl2.ratio = grading 
+    bl2.EdgesList = [l1, l2] 
+    field_list += [bl2] 
 
 
-fmin = py2gmsh.Fields.Min(mesh=mesh) 
-fmin.FieldsList = field_list 
-mesh.setBackgroundField(fmin) 
+    fmin = py2gmsh.Fields.Min(mesh=mesh) 
+    fmin.FieldsList = field_list 
+    mesh.setBackgroundField(fmin) 
 
-mesh.Options.Mesh.CharacteristicLengthMax = he 
+    mesh.Options.Mesh.CharacteristicLengthMax = he 
 
-domain.MeshOptions.genMesh = opts.gen_mesh 
-domain.MeshOptions.use_gmsh = opts.use_gmsh 
-domain.use_gmsh = opts.use_gmsh 
+    domain.MeshOptions.genMesh = opts.gen_mesh 
+    domain.MeshOptions.use_gmsh = opts.use_gmsh 
+    domain.use_gmsh = opts.use_gmsh 
 
-geofile = 'mesh'
-mesh.writeGeo(geofile+'.geo') 
-domain.geofile = geofile
+    geofile = 'mesh'
+    mesh.writeGeo(geofile+'.geo') 
+    domain.geofile = geofile
 
 
 ##########################################
@@ -290,15 +294,15 @@ useRANS = opts.useRANS # 0 -- None
             # 3 -- K-Omega, 1988
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 #  Discretization
@@ -306,22 +310,22 @@ nd = 2
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,3)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,3)
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3)
          #elementBoundaryQuadrature = SimplexLobattoQuadrature(nd-1,1)
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)
     else:
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 
@@ -395,7 +399,8 @@ rd_nl_atol_res = 1e-6#max(1.0e-6,0.01*domain.MeshOptions.he)
 kappa_nl_atol_res = 1e-6#max(1.0e-6,0.001*domain.MeshOptions.he**2)
 dissipation_nl_atol_res = 1e-6#max(1.0e-6,0.001*domain.MeshOptions.he**2)
 mesh_nl_atol_res = 1e-6#max(1.0e-6,0.001*domain.MeshOptions.he**2)
-mesh.writeGeo(geofile+'.geo') 
+if opts.use_gmsh:
+    mesh.writeGeo(geofile+'.geo')
 
 #turbulence
 ns_closure=0 #1-classic smagorinsky, 2-dynamic smagorinsky, 3 -- k-epsilon, 4 -- k-omega

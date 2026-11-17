@@ -1,6 +1,6 @@
 from proteus import Domain, Context
-#from proteus.mprans
-import SpatialTools as st
+from proteus.mprans import SpatialTools as st
+from proteus.mprans import BodyDynamics as bd
 from proteus import Gauges as ga
 from proteus import WaveTools as wt
 from math import *
@@ -99,13 +99,17 @@ if opts.waveType=='Fenton':
                                       waveDir=waveDir,
                                       wavelength=opts.wavelength, # if wave is linear I can use None
                                       waveType=opts.waveType,
-                                      Ycoeff=opts.Ycoeff,
-                                      Bcoeff=opts.Bcoeff,
+                                      Ycoeff=np.array(opts.Ycoeff),
+                                      Bcoeff=np.array(opts.Bcoeff),
+                                      Nf=len(opts.Bcoeff),
+                                      autoFenton=False,  # use the coefficients given above
                                       )
 
 #---------Domain Dimension
 nd = 2
 wl = waveinput.wavelength
+he = wl/opts.refinement_level
+omega = 2*np.pi/period
 
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 # ----- SHAPES ----- #
@@ -137,10 +141,10 @@ x6=x5+opts.Lend*wl
 x7=x6+L_rightSpo
 tank_dim = [x7, opts.h]
 
-boundaryOrientations = {'bottom': [0., -1.,0.],
-                        'right': [1., 0.,0.],
-                        'top': [0., 1.,0.],
-                        'left': [-1., 0.,0.],
+boundaryOrientations = {'bottom': np.array([0., -1.,0.]),
+                        'right': np.array([1., 0.,0.]),
+                        'top': np.array([0., 1.,0.]),
+                        'left': np.array([-1., 0.,0.]),
                         'sponge': None,
                         'moving_sponge': None,
                        }
@@ -156,6 +160,8 @@ boundaryTags = {'bottom': 1,
 # Caisson 
 ############################################################################################################################################################################################################
 
+d15_or_d50 = opts.d50 if opts.d50 is not None else opts.d15
+
 if opts.caisson:
     dimx=dimx
     dimy=dimy
@@ -168,12 +174,18 @@ if opts.caisson:
     mass=density*volume
     It=(dimx**2.+dimy**2.)/12.
 
-    caisson2D = st.Rectangle(domain, dim=dim, coords=coords)
-    caisson2D.vertices[0][0]=xc1
-    caisson2D.vertices[0][1]=yc1
-    caisson2D.vertices[1][0]=xc2
-    caisson2D.vertices[1][1]=yc2   
+    caisson = st.Rectangle(domain, dim=dim, coords=coords)
+    caisson.vertices[0][0]=xc1
+    caisson.vertices[0][1]=yc1
+    caisson.vertices[1][0]=xc2
+    caisson.vertices[1][1]=yc2
 
+    # The mesh does not move (movingDomain=False, no moveMesh model), so the
+    # caisson is fixed in the flow. As in the original deck, it is still a body
+    # with free DOFs and a very large density, so that caisson2D.csv records
+    # the wave loads (Fx, Fy = loads + weight, Mz); CaissonBody records forces
+    # multiplied by the free DOFs. Its recorded position is not meaningful.
+    caisson2D = bd.CaissonBody(shape=caisson, substeps=20)
     free_x=(1.0, 1.0, 1.0) # Translational DOFs
     free_r=(0.0, 0.0, 1.0) # Rotational DOFs
     m_static=opts.m_static # Static friction
@@ -182,17 +194,20 @@ if opts.caisson:
     if opts.movingDomain==True:
         free_x=(1.0, 1.0, 0.0) # Translational DOFs
         free_r=(0.0, 0.0, 1.0) # Rotational DOFs
-   
+
     caisson2D.setMass(mass)
     caisson2D.setConstraints(free_x=free_x, free_r=free_r)
-    caisson2D.setFriction(friction=opts.friction, m_static=m_static, m_dynamic=m_dynamic)
+    caisson2D.setFriction(friction=opts.friction, m_static=m_static, m_dynamic=m_dynamic,
+                          tolerance=he/(float(10**6)), grainSize=d15_or_d50)
 
     if opts.rotation==True: # Initial position for free oscillation
         caisson2D.rotate(rotation)
 
     caisson2D.It= It/caisson2D.mass/width
-    caisson2D.setRecordValues(all_values=True)
-    caisson2D.setRigidBody()
+    caisson2D.setRecordValues(filename='caisson2D', all_values=True)
+    caisson2D.setOverturning(False)
+    caisson2D.setSprings(False, 0., 0., 0., 0., 0., 0.)
+    caisson2D.setNumericalScheme(scheme='Runge_Kutta')
 
 ##############################################################################################################################################################################################################
 # Tank
@@ -353,33 +368,34 @@ dragBeta=0.0#(porosity**3)*Beta/nu_0
 #############################################################################################################################################################################################################################################################################################################################################################################################
 
 if opts.caisson:
-    for bc in caisson2D.BC_list:
+    for bc in caisson.BC_list:
         bc.setFreeSlip()
 
-tank.BC.top.setOpenAir()
-tank.BC.left.setUnsteadyTwoPhaseVelocityInlet(wave=waveinput, vert_axis=1, windSpeed=windVelocity)
-#tank.BC.bottom.setFreeSlip()
-tank.BC.bottom.setNoSlip()
-#tank.BC.right.setFreeSlip()
-tank.BC.right.setNoSlip()
-tank.BC.sponge.setNonMaterial()
-tank.BC.moving_sponge.setNonMaterial()
+tank.BC['top'].setAtmosphere()
+tank.BC['left'].setUnsteadyTwoPhaseVelocityInlet(wave=waveinput, vert_axis=1, smoothing=3.0*he)
+#tank.BC['bottom'].setFreeSlip()
+tank.BC['bottom'].setNoSlip()
+#tank.BC['right'].setFreeSlip()
+tank.BC['right'].setNoSlip()
+tank.BC['sponge'].setNonMaterial()
+if opts.caisson:
+    tank.BC['moving_sponge'].setNonMaterial()
 
 if opts.movingDomain==True:
-    for tb in [tank.BC.right, tank.BC.left, tank.BC.top, tank.BC.bottom, tank.BC.sponge]:
-        tb.hx_dirichlet= lambda x, t: 0.0
-        tb.hy_dirichlet= lambda x, t: 0.0
-        tb.hz_dirichlet= lambda x, t: 0.0
-        tb.u_stress=None
-        tb.v_stress=None
-        tb.w_stress=None
-    ms=tank.BC.moving_sponge
-    ms.hx_dirichlet= None
-    ms.hy_dirichlet= None
-    ms.hz_dirichlet= lambda x, t: 0.0
-    ms.u_stress=None
-    ms.v_stress=None
-    ms.w_stress=None
+    for tb in [tank.BC['right'], tank.BC['left'], tank.BC['top'], tank.BC['bottom'], tank.BC['sponge']]:
+        tb.hx_dirichlet.uOfXT= lambda x, t: 0.0
+        tb.hy_dirichlet.uOfXT= lambda x, t: 0.0
+        tb.hz_dirichlet.uOfXT= lambda x, t: 0.0
+        tb.u_stress.uOfXT=None
+        tb.v_stress.uOfXT=None
+        tb.w_stress.uOfXT=None
+    ms=tank.BC['moving_sponge']
+    ms.hx_dirichlet.uOfXT= None
+    ms.hy_dirichlet.uOfXT= None
+    ms.hz_dirichlet.uOfXT= lambda x, t: 0.0
+    ms.u_stress.uOfXT=None
+    ms.v_stress.uOfXT=None
+    ms.w_stress.uOfXT=None
 
 
 
@@ -389,17 +405,15 @@ if opts.movingDomain==True:
 
 
 
-tank.setGenerationZones(flags=1, epsFact_solid=float(L_leftSpo/2.),
+tank.setGenerationZones(flags=1, epsFact_porous=float(L_leftSpo/2.),
                         orientation=[1., 0.], center=(float(L_leftSpo/2.), 0., 0.),
-                        waves=waveinput, windSpeed=windVelocity,
-                        )
-tank.setPorousZones(flags=3, epsFact_solid=float((x5-x2)/2.),
+                        waves=waveinput, smoothing=3.0*he, dragAlpha=10.*omega/nu_0)
+tank.setPorousZones(flags=3,
                     dragAlpha=dragAlpha, dragBeta=dragBeta,
-                    porosity=porosity,
-                   )
-tank.setAbsorptionZones(flags=4, epsFact_solid=float(L_rightSpo/2.),
+                    porosity=porosity)
+tank.setAbsorptionZones(flags=4, epsFact_porous=float(L_rightSpo/2.),
                         orientation=[-1., 0.], center=(float(x7-L_rightSpo/2.), 0., 0.),
-                        )
+                        dragAlpha=10.*omega/nu_0)
 
 
 ############################################################################################################################################################################
@@ -442,19 +456,19 @@ vof_probes=ga.LineIntegralGauges(gauges=((fields, VG),
 
 
 if opts.caisson:
-    xc1=caisson2D.vertices[0][0]-1*(10**-5) #to avoid floating point error
-    yc1=caisson2D.vertices[0][1]-1*(10**-5) #to avoid floating point error
-    xc2=caisson2D.vertices[1][0]+1*(10**-5) #to avoid floating point error
-    yc2=caisson2D.vertices[1][1]-1*(10**-5) #to avoid floating point error
-    xc3=caisson2D.vertices[2][0]+1*(10**-5) #to avoid floating point error
-    yc3=caisson2D.vertices[2][1]+1*(10**-5) #to avoid floating point error
-    xc4=caisson2D.vertices[3][0]-1*(10**-5) #to avoid floating point error
-    yc4=caisson2D.vertices[3][1]+1*(10**-5) #to avoid floating point error
+    xc1=caisson.vertices[0][0]-1*(10**-5) #to avoid floating point error
+    yc1=caisson.vertices[0][1]-1*(10**-5) #to avoid floating point error
+    xc2=caisson.vertices[1][0]+1*(10**-5) #to avoid floating point error
+    yc2=caisson.vertices[1][1]-1*(10**-5) #to avoid floating point error
+    xc3=caisson.vertices[2][0]+1*(10**-5) #to avoid floating point error
+    yc3=caisson.vertices[2][1]+1*(10**-5) #to avoid floating point error
+    xc4=caisson.vertices[3][0]-1*(10**-5) #to avoid floating point error
+    yc4=caisson.vertices[3][1]+1*(10**-5) #to avoid floating point error
     
 #-------------Wave overtopping-----------------------------------------------#
     
     dx=0.01
-    probes=np.linspace(yc1, tank_dim[1], (tank_dim[1]-yc1)/dx+1)    
+    probes=np.linspace(yc1, tank_dim[1], int((tank_dim[1]-yc1)/dx+1))    
     for i in probes:
         LG.append((xc1,i,0.),)
     overtoppingGauges=ga.PointGauges(gauges=((('u',), LG),),
@@ -470,19 +484,19 @@ if opts.caisson:
 
 #-------------Wave loading---------------------------------------------------#
 
-    probes1=np.linspace(xc1, xc2, (xc2-xc1)/dx+1) 
+    probes1=np.linspace(xc1, xc2, int((xc2-xc1)/dx+1)) 
     for i in probes1:
         LG1.append((i,yc1,0.),)    
 
-    probes2=np.linspace(yc2, yc3, (yc3-yc2)/dx+1) 
+    probes2=np.linspace(yc2, yc3, int((yc3-yc2)/dx+1)) 
     for i in probes2:
         LG2.append((xc2,i,0.),)   
 
-    probes3=np.linspace(xc4, xc3, (xc3-xc4)/dx+1) 
+    probes3=np.linspace(xc4, xc3, int((xc3-xc4)/dx+1)) 
     for i in probes3:
         LG3.append((i,yc3,0.),)    
 
-    probes4=np.linspace(yc1, yc4, (yc4-yc1)/dx+1) 
+    probes4=np.linspace(yc1, yc4, int((yc4-yc1)/dx+1)) 
     for i in probes4:
         LG4.append((xc4,i,0.),)  
 
@@ -495,12 +509,11 @@ if opts.caisson:
                               fileName='loadingGauges.csv')
 
 
-    domain.auxiliaryVariables += [pressureGauges,vof_probes,overtoppingGauges,vofGauges,
-                                  loadingsGauges,
-                                 ]
+    twp_gauges = [pressureGauges, overtoppingGauges, loadingsGauges]
+    vof_gauges = [vof_probes, vofGauges]
 else:
-    domain.auxiliaryVariables += [pressureGauges, vof_probes,
-                                 ]
+    twp_gauges = [pressureGauges]
+    vof_gauges = [vof_probes]
 
 
 
@@ -508,8 +521,7 @@ else:
 # Numerical Options and other parameters #
 ######################################################################################################################################################################################################################
 
-he = waveinput.wavelength/opts.refinement_level
-domain.MeshOptions.he = he 
+domain.MeshOptions.he = he
 
 
 from math import *
@@ -571,15 +583,15 @@ useVF = opts.useVF # used in the smoothing functions as (1.0-useVF)*smoothedHeav
 
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 #  Discretization
@@ -587,22 +599,22 @@ nd = 2
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,3)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,3)
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3)
          #elementBoundaryQuadrature = SimplexLobattoQuadrature(nd-1,1)
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)
     else:
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 

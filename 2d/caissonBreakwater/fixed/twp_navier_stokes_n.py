@@ -81,8 +81,7 @@ maxNonlinearIts = 50
 maxLineSearches = 0
 if ct.opts.conservativeFlux==True:
     conservativeFlux = {0:'pwl-bdm-opt'}
-if ct.opts.caisson:
-    auxiliaryVariables = ct.domain.auxiliaryVariables + [ct.pressureGauges,ct.overtoppingGauges,
-                                                         ct.loadingsGauges]
-else:
-    auxiliaryVariables = ct.domain.auxiliaryVariables + [ct.pressureGauges]
+
+auxiliaryVariables = ct.domain.auxiliaryVariables['twp'] + ct.twp_gauges
+
+

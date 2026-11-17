@@ -147,15 +147,6 @@ class AtRest:
         return 0.0
 
 
-# Instanciating the classes for *_p.py files
-initialConditions = {'pressure': PerturbedSurface_p(water_depth,
-                                                    opts.amplitude),
-                     'vel_u': AtRest(),
-                     'vel_v': AtRest(),
-                     'vof': PerturbedSurface_H(),
-                     'ncls': PerturbedSurface_phi(),
-                     'rdls': PerturbedSurface_phi()}
-
 # Solution
 
 def eta0(x, t):
@@ -281,66 +272,53 @@ def signedDistance(x, t):
     
 # Numerics
 
-outputStepping = TpFlow.OutputStepping(
-    final_time=opts.T,
-    dt_init=opts.dt_init,
-    # cfl=opts.cfl,
-    dt_output=opts.dt_output,
-    nDTout=None,
-    dt_fixed=opts.dt_fixed,
-)
-
-myTpFlowProblem = TpFlow.TwoPhaseFlowProblem(
-    ns_model=None,
-    ls_model=None,
-    nd=domain.nd,
-    cfl=opts.cfl,
-    outputStepping=outputStepping,
-    structured=False,
-    he=opts.he,
-    nnx=None,
-    nny=None,
-    nnz=None,
-    domain=domain,
-    initialConditions=initialConditions,
-    boundaryConditions=None, # set with SpatialTools,
-    useSuperlu=opts.useSuperlu,
-)
-myTpFlowProblem.movingDomain = opts.movingDomain
-
-params = myTpFlowProblem.Parameters
-
-# Mesh Parameters
-
-m = params.Models
-
-params.mesh.genMesh = opts.genMesh
-params.mesh.he = opts.he
-if opts.useHex:
-    params.mesh.nnx = 4 * refinement + 1
-    params.mesh.nny = 2*refinement+1
-elif opts.structured:
-    params.mesh.nnx = 4 * refinement
-    params.mesh.nny = 2 * refinement
-
-params.physical.densityA = opts.rho_0  # water
-params.physical.densityB = opts.rho_1  # air
-params.physical.kinematicViscosityA = opts.nu_0  # water
-params.physical.kinematicViscosityB = opts.nu_1  # air
-params.physical.surf_tension_coeff = opts.sigma_01
-
-# index in order of
-m = params.Models
-m.moveMeshElastic.index=0
-m.rans2p.index = 1
-m.vof.index = 2
-m.ncls.index = 3
-m.rdls.index = 4
-m.mcorr.index = 5
-
-
 # Mesh Construction
 
 he = opts.he
 domain.MeshOptions.he = he
+domain.MeshOptions.genMesh = opts.genMesh
 st.assembleDomain(domain)
+
+# Two-phase flow problem (RANS2P + VOF/NCLS/RDLS/MCorr, optionally MoveMeshElastic)
+from proteus.TwoPhaseFlow.utils import Parameters
+
+myTpFlowProblem = TpFlow.TwoPhaseFlowProblem()
+myTpFlowProblem.domain = domain
+
+myTpFlowProblem.outputStepping.final_time = opts.T
+myTpFlowProblem.outputStepping.dt_init = opts.dt_init
+myTpFlowProblem.outputStepping.dt_output = opts.dt_output
+myTpFlowProblem.outputStepping.dt_fixed = opts.dt_fixed
+myTpFlowProblem.outputStepping.systemStepExact = True
+
+physics = myTpFlowProblem.SystemPhysics
+physics.setDefaults()
+physics.movingDomain = opts.movingDomain
+if opts.movingDomain:
+    physics.addModel(Parameters.ParametersModelMoveMeshElastic, 'moveMeshElastic')
+physics.useDefaultModels(flowModel=0, interfaceModel=0)
+physics.rho_0 = opts.rho_0  # water
+physics.nu_0 = opts.nu_0
+physics.rho_1 = opts.rho_1  # air
+physics.nu_1 = opts.nu_1
+physics.surf_tension_coeff = opts.sigma_01
+physics.gravity = np.array(opts.g)
+
+myTpFlowProblem.SystemNumerics.cfl = opts.cfl
+myTpFlowProblem.SystemNumerics.useSuperlu = opts.useSuperlu
+
+m = physics.modelDict
+m['flow'].p.initialConditions['p'] = PerturbedSurface_p(water_depth, opts.amplitude)
+m['flow'].p.initialConditions['u'] = AtRest()
+m['flow'].p.initialConditions['v'] = AtRest()
+m['vof'].p.initialConditions['vof'] = PerturbedSurface_H()
+m['ncls'].p.initialConditions['phi'] = PerturbedSurface_phi()
+m['rdls'].p.initialConditions['phid'] = PerturbedSurface_phi()
+m['mcorr'].p.initialConditions['phiCorr'] = AtRest()
+if opts.movingDomain:
+    m['moveMeshElastic'].p.initialConditions['hx'] = AtRest()
+    m['moveMeshElastic'].p.initialConditions['hy'] = AtRest()
+
+if opts.gauge_output:
+    m['flow'].auxiliaryVariables += domain.auxiliaryVariables['twp']
+    m['ncls'].auxiliaryVariables += domain.auxiliaryVariables['ls']

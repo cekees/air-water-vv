@@ -119,6 +119,7 @@ if opts.wave == True:
                                   waveType=opts.waveType, 
                                   Ycoeff=np.array(opts.Ycoeff),     # used by fenton waves
                                   Bcoeff=np.array(opts.Bcoeff),     # used by fenton waves
+                                  autoFenton=False,  # use the coefficients given above
                                   Nf=opts.Nf,                       # used by fenton waves
                                   meanVelocity = np.array(opts.meanVelocity),
                                   phi0 = opts.phi0,
@@ -482,13 +483,13 @@ if opts.caisson2D:
 
 # Waves and Generation zone
 if opts.GenZone and opts.wave:
-    tank.setGenerationZones(flags=1, epsFact_solid=float(L_leftSpo/2.),
+    tank.setGenerationZones(flags=1, epsFact_porous=float(L_leftSpo/2.),
                         orientation=[1., 0.], center=(float(L_leftSpo/2.), 0., 0.),
                         waves=waveinput, smoothing=3.0*he, dragAlpha=10.*omega/nu_0)
 
 # Only Generation zone                        
 elif opts.GenZone:
-    tank.setAbsorptionZones(flags=1, epsFact_solid=float(L_leftSpo/2.),
+    tank.setAbsorptionZones(flags=1, epsFact_porous=float(L_leftSpo/2.),
                         orientation=[1., 0.], center=(float(L_leftSpo/2.), 0., 0.),
                         dragAlpha=10.*omega/nu_0)
 
@@ -501,11 +502,11 @@ if opts.porousMedia:
 # Absorption zone
 if opts.AbsZone:
     if opts.caisson2D:
-        tank.setAbsorptionZones(flags=4, epsFact_solid=float(L_rightSpo/2.),
+        tank.setAbsorptionZones(flags=4, epsFact_porous=float(L_rightSpo/2.),
                         orientation=[-1., 0.], center=(float(tank_dim[0]-L_rightSpo/2.), 0., 0.),
                         dragAlpha=10.*omega/nu_0)
     else:
-        tank.setAbsorptionZones(flags=3, epsFact_solid=float(L_rightSpo/2.),
+        tank.setAbsorptionZones(flags=3, epsFact_porous=float(L_rightSpo/2.),
                         orientation=[-1., 0.], center=(float(tank_dim[0]-L_rightSpo/2.), 0., 0.),
                         dragAlpha=10.*omega/nu_0)       
 
@@ -629,11 +630,11 @@ useVF = opts.useVF # used in the smoothing functions as (1.0-useVF)*smoothedHeav
 
 # Input checks
 if spaceOrder not in [1,2]:
-    print("INVALID: spaceOrder" + spaceOrder)
+    print(("INVALID: spaceOrder" + spaceOrder))
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print("INVALID: useRBLES" + useRBLES)
+    print(("INVALID: useRBLES" + useRBLES))
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:

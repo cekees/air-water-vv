@@ -46,15 +46,15 @@ useRANS = 0 # 0 -- None
             # 2 -- K-Omega
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()    
     
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES 
+    print("INVALID: useRBLES" + useRBLES) 
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
     
 #  Discretization   
@@ -62,21 +62,21 @@ nd = 3
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,2)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,2)     	 
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3) 	    
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:    
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)    
     else:    
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis	
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis	
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
     
@@ -174,7 +174,7 @@ else:
             vertexFlags.append(boundaryTags['bottom'])
             
 
-        for v,vf in zip(vertices,vertexFlags):
+        for v,vf in list(zip(vertices,vertexFlags)):
             vertices.append([v[0],v[1],L[2]])
             vertexFlags.append(boundaryTags['top'])
 
@@ -218,7 +218,7 @@ else:
         facets=[]
         facetFlags=[]
         #print int(len(vertices))
-        for s,sF in zip(segments,segmentFlags):
+        for s,sF in list(zip(segments,segmentFlags)):
             facets.append([[s[0],s[1],s[1]+int(len(vertices)/2),s[0]+int(len(vertices)/2)]])
             facetFlags.append(sF)
 
@@ -509,18 +509,18 @@ class RelaxationZoneWaveGenerator(AV_base):
         self.zones = zones
     def calculate(self):
         for l,m in enumerate(self.model.levelModelList):
-            for eN in range(m.coefficients.q_phi.shape[0]):
+            for eN in range(m.coefficients.q_phi_porous.shape[0]):
                 mType = m.mesh.elementMaterialTypes[eN]
-                if self.zones.has_key(mType):
-                    for k in range(m.coefficients.q_phi.shape[1]):
+                if mType in self.zones:
+                    for k in range(m.coefficients.q_phi_porous.shape[1]):
                         t = m.timeIntegration.t
                         x = m.q['x'][eN,k]
-                        m.coefficients.q_phi_solid[eN,k] = self.zones[mType].sign*self.zones[mType].phi_solid(x,t)
-                        m.coefficients.q_velocity_solid[eN,k,0] = self.zones[mType].u(x,t)
-                        m.coefficients.q_velocity_solid[eN,k,1] = self.zones[mType].v(x,t)
-                        m.coefficients.q_velocity_solid[eN,k,2] = self.zones[mType].w(x,t)
-        m.q['phi_solid'] = m.coefficients.q_phi_solid
-        m.q['velocity_solid'] = m.coefficients.q_velocity_solid
+                        m.coefficients.q_phi_porous[eN,k] = self.zones[mType].sign*self.zones[mType].phi_solid(x,t)
+                        m.coefficients.q_velocity_porous[eN,k,0] = self.zones[mType].u(x,t)
+                        m.coefficients.q_velocity_porous[eN,k,1] = self.zones[mType].v(x,t)
+                        m.coefficients.q_velocity_porous[eN,k,2] = self.zones[mType].w(x,t)
+        m.q["phi_porous"] = m.coefficients.q_phi_porous
+        m.q["velocity_porous"] = m.coefficients.q_velocity_porous
 
 rzWaveGenerator = RelaxationZoneWaveGenerator(zones={1:RelaxationZone(phi_solid,
                                                                       1.0,#GENERATION

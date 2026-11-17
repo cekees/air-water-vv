@@ -18,6 +18,13 @@ In order to run 2D simulations, all the physical parameters and variables were n
 
 References
 ----------
+Cozzuto, G., Dimakopoulos, A., de Lataillade, T., Otinar Morillas, P. and Kees, C.E. (2019).
+Simulating oscillatory and sliding displacements of caisson breakwaters using a coupled approach.
+Journal of Waterway, Port, Coastal, and Ocean Engineering 145(3), 04019005.
+https://doi.org/10.1061/(ASCE)WW.1943-5460.0000504
+(the Proteus validation of this case; the same geometry, wave conditions, friction coefficients and
+foundation stiffness and damping as the defaults here)
+
 Wang Yuan-Zhan, Chen Nan-Nan and Chi Li-Hua (2006). Numerical simulation on joint motion processes of
 various modes of caisson breakwater under wave excitation. Communications in Numerical Methods in
 Engineering 22, 535-545.

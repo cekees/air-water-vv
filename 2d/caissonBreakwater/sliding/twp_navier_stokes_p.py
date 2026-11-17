@@ -35,7 +35,7 @@ if hasattr(domain, 'porosityTypes'):
     porosityTypes = domain.porosityTypes
     dragAlphaTypes = domain.dragAlphaTypes
     dragBetaTypes = domain.dragBetaTypes
-    epsFact_solid = domain.epsFact_solid
+    epsFact_solid = domain.epsFact_porous
 else:
     porosityTypes = None
     dragAlphaTypes = None
@@ -68,7 +68,7 @@ coefficients = RANS2P.Coefficients(epsFact=ct.epsFact_viscosity,
                                    porosityTypes=porosityTypes,
                                    dragAlphaTypes=dragAlphaTypes,
                                    dragBetaTypes=dragBetaTypes,
-                                   epsFact_solid=epsFact_solid,
+                                   epsFact_porous=epsFact_solid,
                                    barycenters=ct.domain.barycenters,
                                    NONCONSERVATIVE_FORM=0.0)
 

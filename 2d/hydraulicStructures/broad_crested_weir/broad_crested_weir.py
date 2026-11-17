@@ -155,8 +155,8 @@ tank.BC['x+'].setHydrostaticPressureOutletWithDepth(seaLevel=opts.outflow_level,
                                                     rhoDown=opts.rho_0,
                                                     g=np.array([0.,-9.805,0]),
                                                     refLevel=1.,
-                                                    smoothing=smoothing
- 
+                                                    smoothing=smoothing)
+
 tank.BC['x-'].setUnsteadyTwoPhaseVelocityInlet(wave=current, 
                                                vert_axis=None,
 					       smoothing=3.0*he
@@ -254,58 +254,39 @@ dt_init = opts.dt_init
 nDTout = int(round(opts.Tend / opts.dt_fixed))
 Duration= opts.Tend/opts.fract
 
-initialConditions = {'pressure': P_IC(),
-                     'vel_u': AtRest(),
-                     'vel_v': AtRest(),
-                     'vel_w': AtRest()}
-initialConditions['vof'] = VOF_IC()
-initialConditions['ncls'] = LS_IC()
-initialConditions['rdls'] = LS_IC()
             
-outputStepping = TpFlow.OutputStepping(final_time=Duration,
-                                                   dt_init=opts.dt_init,
-                                                   # cfl=cfl,
-                                                   dt_output=opts.dt_output,
-                                                   nDTout=None,
-                                                   dt_fixed=None)
             
-myTpFlowProblem = TpFlow.TwoPhaseFlowProblem(ns_model=None,
-                                            ls_model=None,
-                                            nd=domain.nd,
-                                            cfl=opts.cfl,
-                                            outputStepping=outputStepping,
-                                            structured=False,
-                                            he=he,
-                                            nnx=None,
-                                            nny=None,
-                                            nnz=None,
-                                            domain=domain,
-                                            initialConditions=initialConditions,
-                                            boundaryConditions=None, 
-                                             )
-params = myTpFlowProblem.Parameters
+# Two-phase flow problem
+myTpFlowProblem = TpFlow.TwoPhaseFlowProblem()
+myTpFlowProblem.domain = domain
+myTpFlowProblem.outputStepping.final_time = Duration
+myTpFlowProblem.outputStepping.dt_init = opts.dt_init
+myTpFlowProblem.outputStepping.dt_output = opts.dt_output
+myTpFlowProblem.outputStepping.systemStepExact = True
+
+physics = myTpFlowProblem.SystemPhysics
+physics.setDefaults()
+physics.useDefaultModels(flowModel=0, interfaceModel=0)
+myTpFlowProblem.SystemNumerics.cfl = opts.cfl
+
+m = physics.modelDict
+m['flow'].p.initialConditions['p'] = P_IC()
+m['flow'].p.initialConditions['u'] = AtRest()
+m['flow'].p.initialConditions['v'] = AtRest()
+m['vof'].p.initialConditions['vof'] = VOF_IC()
+m['ncls'].p.initialConditions['phi'] = LS_IC()
+m['rdls'].p.initialConditions['phid'] = LS_IC()
+m['mcorr'].p.initialConditions['phiCorr'] = AtRest()
             
-myTpFlowProblem.useSuperLu=False#True
-params.physical.densityA = opts.rho_0  # water
-params.physical.densityB = opts.rho_1  # air
-params.physical.kinematicViscosityA = opts.nu_0  # water
-params.physical.kinematicViscosityB = opts.nu_1  # air
-params.physical.surf_tension_coeff = opts.sigma_01
+myTpFlowProblem.SystemNumerics.useSuperlu = False
+physics.rho_0 = opts.rho_0
+physics.rho_1 = opts.rho_1
+physics.nu_0 = opts.nu_0
+physics.nu_1 = opts.nu_1
+physics.surf_tension_coeff = opts.sigma_01
             
-# index in order of
-m = params.Models
-m.moveMeshElastic.index=0
-m.rans2p.index = 1
-m.vof.index = 2
-m.ncls.index = 3
-m.rdls.index = 4
-m.mcorr.index = 5
             
 # Assemble domain
 domain.MeshOptions.he = he
 st.assembleDomain(domain)
-myTpFlowProblem.Parameters.Models.rans2p.auxiliaryVariables += domain.auxiliaryVariables['twp']
-                
-# assemble domain
-domain.MeshOptions.he = he
-st.assembleDomain(domain)
+m['flow'].auxiliaryVariables += domain.auxiliaryVariables['twp']

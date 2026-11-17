@@ -2,7 +2,8 @@ from proteus import Domain, Context, Comm
 from proteus.mprans import SpatialTools as st
 from proteus import WaveTools as wt
 from proteus.Profiling import logEvent
-from proteus.mbd import ChRigidBody as crb
+from proteus.mbd import CouplingFSI as crb
+import pychrono
 from math import *
 import numpy as np
 
@@ -113,6 +114,7 @@ if opts.waves is True:
                                 waveType=opts.wave_type,
                                 Ycoeff=YCoeffs,
                                 Bcoeff=BCoeffs,
+                                autoFenton=False,  # use the coefficients given above
                                 Nf=len(BCoeffs),
                                 fast=False)
     wavelength = wave.wavelength
@@ -242,18 +244,18 @@ if opts.caisson is True:
     # rotation = np.array([1, 0., 0., 0.])
     rotation_init = np.array([np.cos(ang/2.), 0., 0., np.sin(ang/2.)*1.])
     caisson.rotate(ang, pivot=caisson.barycenter)
-    system = crb.ProtChSystem(np.array([0., -9.81, 0.]))
+    system = crb.ProtChSystem()
+    system.ChSystem.SetGravitationalAcceleration(pychrono.ChVector3d(0., -9.81, 0.))
     system.setTimeStep(opts.chrono_dt)
     #body = crb.ProtChBody(shape=caisson,
     body = crb.ProtChBody(system=system)
     body.attachShape(caisson)
 
-    from proteus.mbd import pyChronoCore as pych
     x, y, z = caisson.barycenter
-    pos = pych.ChVector(x, y, z)
+    pos = pychrono.ChVector3d(x, y, z)
     e0, e1, e2, e3 = rotation_init
-    rot = pych.ChQuaternion(e0, e1, e2, e3)
-    inertia = pych.ChVector(1., 1., inertia)
+    rot = pychrono.ChQuaterniond(e0, e1, e2, e3)
+    inertia = pychrono.ChVector3d(1., 1., inertia)
     # chrono functions
     body.ChBody.SetPos(pos)
     body.ChBody.SetRot(rot)
@@ -565,15 +567,15 @@ useRANS = opts.useRANS # 0 -- None
             # 3 -- K-Omega, 1988
 # Input checks
 if spaceOrder not in [1,2]:
-    print "INVALID: spaceOrder" + spaceOrder
+    print("INVALID: spaceOrder" + spaceOrder)
     sys.exit()
 
 if useRBLES not in [0.0, 1.0]:
-    print "INVALID: useRBLES" + useRBLES
+    print("INVALID: useRBLES" + useRBLES)
     sys.exit()
 
 if useMetrics not in [0.0, 1.0]:
-    print "INVALID: useMetrics"
+    print("INVALID: useMetrics")
     sys.exit()
 
 #  Discretization
@@ -581,22 +583,22 @@ nd = 2
 if spaceOrder == 1:
     hFactor=1.0
     if useHex:
-	 basis=C0_AffineLinearOnCubeWithNodalBasis
+         basis=C0_AffineLinearOnCubeWithNodalBasis
          elementQuadrature = CubeGaussQuadrature(nd,3)
          elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,3)
     else:
-    	 basis=C0_AffineLinearOnSimplexWithNodalBasis
+         basis=C0_AffineLinearOnSimplexWithNodalBasis
          elementQuadrature = SimplexGaussQuadrature(nd,3)
          elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,3)
          #elementBoundaryQuadrature = SimplexLobattoQuadrature(nd-1,1)
 elif spaceOrder == 2:
     hFactor=0.5
     if useHex:
-	basis=C0_AffineLagrangeOnCubeWithNodalBasis
+        basis=C0_AffineLagrangeOnCubeWithNodalBasis
         elementQuadrature = CubeGaussQuadrature(nd,4)
         elementBoundaryQuadrature = CubeGaussQuadrature(nd-1,4)
     else:
-	basis=C0_AffineQuadraticOnSimplexWithNodalBasis
+        basis=C0_AffineQuadraticOnSimplexWithNodalBasis
         elementQuadrature = SimplexGaussQuadrature(nd,4)
         elementBoundaryQuadrature = SimplexGaussQuadrature(nd-1,4)
 

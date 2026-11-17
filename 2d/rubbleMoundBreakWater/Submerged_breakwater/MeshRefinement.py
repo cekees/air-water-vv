@@ -41,9 +41,9 @@ def geometry_to_gmsh(domain):
                 lineloop = []
                 # vertices in facet
                 for k, ver in enumerate(subf):
-                    if ver in lines_dict[subf[k-1]].keys():
+                    if ver in list(lines_dict[subf[k-1]].keys()):
                         lineloop += [lines_dict[subf[k-1]][ver]+1]
-                    elif subf[k-1] in lines_dict[ver].keys():
+                    elif subf[k-1] in list(lines_dict[ver].keys()):
                         # reversed
                         lineloop += [(lines_dict[ver][subf[k-1]]+1)]
                     else:

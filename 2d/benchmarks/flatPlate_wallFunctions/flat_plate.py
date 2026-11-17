@@ -113,51 +113,42 @@ class dIn:
     def uOfXT(self, x, t):
         return dissipationP 
 
-initialConditions = {'pressure':AtRest(),
-                     'vel_u': AtRest(),
-                     'vel_v': AtRest(),
-                     'vel_w': AtRest(),
-                     'k':kIn(),
-                     'dissipation':dIn()}
                      
-outputStepping = TpFlow.OutputStepping(final_time=opts.duration,
-                                       dt_init=opts.dt_init,
-                                       dt_output=opts.dt_output,
-                                       nDTout=None,
-                                       dt_fixed=None)
 
                      
 
-myTpFlowProblem = TpFlow.TwoPhaseFlowProblem(ns_model=None,
-                                             ls_model=None,
-                                             nd=domain.nd,
-                                             cfl=opts.cfl,
-                                             outputStepping=outputStepping,
-                                             structured=False,
-                                             he=opts.he,
-                                             nnx=None,
-                                             nny=None,
-                                             nnz=None,
-                                             domain=domain,
-                                             initialConditions=initialConditions,
-                                             boundaryConditions=None # set with SpatialTools,
-                                               )
+# Two-phase flow problem
+myTpFlowProblem = TpFlow.TwoPhaseFlowProblem()
+myTpFlowProblem.domain = domain
+myTpFlowProblem.outputStepping.final_time = opts.duration
+myTpFlowProblem.outputStepping.dt_init = opts.dt_init
+myTpFlowProblem.outputStepping.dt_output = opts.dt_output
+myTpFlowProblem.outputStepping.systemStepExact = True
+
+physics = myTpFlowProblem.SystemPhysics
+physics.setDefaults()
+# single-phase RANS2P with k-epsilon (no interface models)
+from proteus.TwoPhaseFlow.utils import Parameters
+physics.useRANS = opts.useRANS
+physics.addModel(Parameters.ParametersModelRANS2P, 'flow')
+physics.addModel(Parameters.ParametersModelKappa, 'kappa')
+physics.addModel(Parameters.ParametersModelDissipation, 'dissipation')
+myTpFlowProblem.SystemNumerics.cfl = opts.cfl
+
+m = physics.modelDict
+m['flow'].p.initialConditions['p'] = AtRest()
+m['flow'].p.initialConditions['u'] = AtRest()
+m['flow'].p.initialConditions['v'] = AtRest()
+m['kappa'].p.initialConditions['kappa'] = kIn()
+m['dissipation'].p.initialConditions['epsilon'] = dIn()
                      
-params = myTpFlowProblem.Parameters
 
-params.physical.densityA = opts.rho  # water
-params.physical.densityB = opts.rho # air
-params.physical.kinematicViscosityA = opts.nu  # water
-params.physical.kinematicViscosityB = opts.nu  # air
-params.physical.surf_tension_coeff = 0.
-params.physical.gravity = opts.g
-params.physical.useRANS = opts.useRANS
-
-# Indices
-m = params.Models
-m.rans2p.index = 0
-m.kappa.index = 1
-m.dissipation.index = 2
+physics.rho_0 = opts.rho
+physics.rho_1 = opts.rho
+physics.nu_0 = opts.nu
+physics.nu_1 = opts.nu
+physics.surf_tension_coeff = 0.
+physics.gravity = np.array(opts.g)
 
 ########################
 # Assemble domain

@@ -33,7 +33,7 @@ def getBYCoeffs():
 
 def copyFiles():
     from proteus import Profiling
-    print Profiling.logDir
+    print(Profiling.logDir)
     import os
     check_call('cp ./Data.dat {0}'.format(os.path.join(Profiling.logDir, 'Data.dat')))
     check_call('cp ./Solution.res {0}'.format(os.path.join(Profiling.logDir, 'Solution.res')))
