@@ -131,6 +131,16 @@ if genMesh:
         #
         #process 2D domain
         #
+        # Every rank builds this 2D/3D geometry (proteus' mesh and partition calls here are collective), and each
+        # call runs Triangle in the current directory: ranks > 0 did so in the case directory next to rank 0 and
+        # raced on frfDomain2D.* / frfDomain3D.* (Triangle: "no 1.ele"). So ranks > 0 work in a private
+        # directory rank<N>/ (removed below); rank 0 keeps the case directory, where TetGen runs on it later.
+        import os as _os
+        _cwd = _os.getcwd()
+        if comm.rank() != 0:
+            _private = _os.path.join(_cwd, 'rank%d' % comm.rank())
+            _os.makedirs(_private, exist_ok=True)
+            _os.chdir(_private)
         bathy_points = np.vstack((bathy[:,7],bathy[:,8],bathy[:,9])).transpose()
         domain2D = InterpolatedBathymetryDomain(vertices=[[xmin,ymin],[xmin,ymax],[xmax,ymax],[xmax,ymin]],
                                               vertexFlags=[boundaryTags['left'],boundaryTags['left'],boundaryTags['right'],boundaryTags['right']],
@@ -242,7 +252,11 @@ if genMesh:
         dragAlphaTypes = numpy.array([0.0])
         dragBetaTypes = numpy.array([0.0])
         epsFact_solidTypes = np.array([0.0])
+        _os.chdir(_cwd)
         comm.barrier()
+        if comm.rank() != 0:
+            import shutil as _shutil
+            _shutil.rmtree(_private, ignore_errors=True)
 else:
     boundaries=['empty','left','right','bottom','top','front','back']
     boundaryTags=dict([(key,i+1) for (i,key) in enumerate(boundaries)])
