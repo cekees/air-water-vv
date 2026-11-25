@@ -118,7 +118,7 @@ def getAFBC_p(x,flag):
     if flag == boundaryTags['left']:
         return lambda x,t: -twpflowVelocity_u(x,t)
     elif flag == boundaryTags['front']:
-        return lambda x,t: -currentVelocity
+        return lambda x,t: -v_current(x,t)
     elif flag == boundaryTags['bottom']:
         return lambda x,t: 0.0
     
