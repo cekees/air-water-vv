@@ -33,6 +33,21 @@ evolution and the flow separation. The results of the simulations can
 be compared with the data in the following references.  For more
 details, see runfiles or references.
 
+Running
+-------
+
+Run it from this directory with the deck's own direct-solver/ASM option file (``inputTemplates/petsc.options.asm``
+at the root of this repository, the file ``garnet.pbs`` uses), with ``parun`` or with ``pro`` (``pro run`` takes the same
+``-l``, ``-O``, ``-D`` and ``-C`` flags)::
+
+   parun sharp_crested_weir_so.py -l 5 -O ../../../inputTemplates/petsc.options.asm -D result_folder
+   pro run sharp_crested_weir_so.py -l 5 -O ../../../inputTemplates/petsc.options.asm -D result_folder
+
+Under MPI put ``mpiexec -n <ranks>`` in front. With the default solver options the run stops at t=1.5614 (step
+failure); with the option file it passes that point (8 ranks, to t=2.0 in 2,722 s; 32 ranks, past 3.46 s with no
+failure). ``-O ../../../inputTemplates/petsc.options.superlu_dist`` (direct LU) is about 5.6 times slower on this deck;
+it is what the two ``deprecated/sharp_crested_weir_VM_V1`` and ``_VM_V2`` decks need (no step with the defaults). Add ``-C "T=2.0"`` for a short check.
+
 References
 ----------
 

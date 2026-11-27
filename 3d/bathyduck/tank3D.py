@@ -95,6 +95,10 @@ elif spaceOrder == 2:
 # Domain and mesh
 he = 0.2  #wavelength/50.0     
 
+# Module level (not inside `if genMesh:`): `parun -F` on a stored mesh (genMesh=False) still needs the TetGen options,
+# whose f and ee flags build the face and edge arrays. Without it default_n's Triangle options reach `-F` and fail.
+triangleOptions="KVApq1.4q12feena%21.16e" % ((he**3)/6.0,)
+
 nLevels = 1
 weak_bc_penalty_constant = 100.0
 
@@ -246,7 +250,6 @@ if genMesh:
                                               units="m")
         domain.writePoly("frfDomain3D")
         domain.writePLY("frfDomain3D")
-        triangleOptions="KVApq1.4q12feena%21.16e" % ((he**3)/6.0,)
         logEvent("""Mesh generated using: tetgen -%s %s"""  % (triangleOptions,domain.polyfile+".poly"))
         porosityTypes = numpy.array([1.0])
         dragAlphaTypes = numpy.array([0.0])
@@ -263,6 +266,10 @@ else:
     from proteus.Domain import  PiecewiseLinearComplexDomain
     domain = PiecewiseLinearComplexDomain(fileprefix="frfDomain3D")
     domain.boundaryTags = boundaryTags
+    # Defined as in the genMesh branch: the top vertices of the stored domain sit at zTop, which is not below any
+    # bottom vertex (zTop >= the 2D mesh's highest node), so the highest vertex of frfDomain3D.poly is zTop.
+    # The poly stores vertices with %21.16e (17 significant digits), which reads back to the same double.
+    zTop = np.array(domain.vertices)[:,2].max()
 
 
 zmin = np.array(domain.vertices)[:,2].min()

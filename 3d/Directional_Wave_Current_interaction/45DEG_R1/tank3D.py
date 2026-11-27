@@ -3,6 +3,7 @@ import proteus.MeshTools
 from proteus import Domain
 from proteus.default_n import *   
 from proteus.Profiling import logEvent
+from proteus import Comm
 from proteus.ctransportCoefficients import smoothedHeaviside
 from proteus.ctransportCoefficients import smoothedHeaviside_integral
 from proteus import Gauges
@@ -25,6 +26,8 @@ outflowHeight=inflowHeightMean
 netcurrentVelocity=wavelength/period-meanFrameVelocity
 
 #print inflowVelocityMean
+
+comm = Comm.init()
 
 #  Discretization -- input options  
 
@@ -143,6 +146,10 @@ columnGauge = LineIntegralGauges(gauges=((fields, columnLines),),
 #lineGauges_phi  = LineGauges_phi(lineGauges.endpoints,linePoints=20)
 
 
+# Module level (not inside the sponge-layer domain branch below): `parun -F` on a stored mesh and any load that skips
+# the geometry code still need the TetGen options (the f and ee flags build the face and edge arrays).
+triangleOptions="KVApq1.4q12feena%21.16e" % ((he**3)/6.0,)
+
 if useHex:   
     nnx=4*Refinement+1
     nny=2*Refinement+1
@@ -255,10 +262,15 @@ else:
                                                      )
         #go ahead and add a boundary tags member 
         domain.boundaryTags = boundaryTags
-        domain.writePoly("mesh")
-        domain.writePLY("mesh")
-        domain.writeAsymptote("mesh")
-        triangleOptions="KVApq1.4q12feena%21.16e" % ((he**3)/6.0,)
+        # Only rank 0 writes the geometry files (every rank used to rewrite mesh.poly/.ply/.asy at load, through the
+        # same path); the other ranks only need the name TetGen/`-F` will use.
+        if comm.rank() == 0:
+            domain.writePoly("mesh")
+            domain.writePLY("mesh")
+            domain.writeAsymptote("mesh")
+        else:
+            domain.polyfile = "mesh"
+        comm.barrier()
 
 
         logEvent("""Mesh generated using: tetgen -%s %s"""  % (triangleOptions,domain.polyfile+".poly"))
