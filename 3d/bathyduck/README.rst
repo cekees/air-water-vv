@@ -7,8 +7,16 @@ Status on proteus 2.0 (2026-11-27): runs to T = 70 s on HPC
 * Carpenter B1 (576 ranks, 3 nodes, ``parun -F`` on a stored mesh): completed T = 70 s, 9,340 steps, 72 frames, about
   45 GB (before the static-mesh change, which writes the mesh once), about 0.74 core-hours per step.
 * Mike 954679 (144 ranks, 4 nodes x 36, ``--archive-driver mpio``, ``--wall-limit scheduler``, 5b671b38 build):
-  running when this was written, 0 failed steps; t = 48.5 s of 70 s after 29 h at dt 7.8 ms (about 1.7 simulated
-  seconds per wall hour). The comparison of the Mike and Carpenter results is not done yet.
+  completed T = 70 s, 9,355 steps, 0 failed, in 43.6 h (about 1.6 simulated seconds per wall hour); 72 frames,
+  28.8 GB with the mesh written once.
+* **The two runs agree.** They differ in build (266eb974, gcc 12.3, Cray MPICH vs 5b671b38, gcc 11.2, Intel MPI),
+  archive driver (serial vs mpio) and rank count. Both archives validate (every dataset the ``.ymf`` names is in the
+  ``.h5``, no NaN). Over all 72 frames the per-frame RMS of each field differs by at most 2e-5 (vof), 1.3e-4 (phi),
+  1.1e-3 (p), 1e-2 (u, w); the step counts agree within 0.2% with the same mean dt in every window.
+* **Run-up at the shoreward wall after t = 62 s, in both runs.** At x = 60-80 m the largest speeds grow from about 2 to
+  7-8 m/s in the water and from 5 to 13-14 m/s in the air, single interface nodes reach -100 Pa (t = 67-68 s) and
+  -580 / -1140 Pa (t = 70 s), and dt falls from 7.5 to 4.7 ms. The mean water fraction stays flat (0.605-0.609). The
+  extremes sit at the same nodes in both runs, within a few percent of each other except at t = 70 s, so this is the case (run-up reaching the ``x = 60`` wall), not the build.
 
 The mesh has 6.9 million tetrahedra and needs about 65-70 KB per tetrahedron over all ranks (about 0.45 TB): a
 multi-node job (a 48-rank probe, 7.8 GB per rank, ran four steps).
@@ -27,7 +35,8 @@ for a shorter test (the ``-C`` options of this deck are the wave parameters only
       mpiexec -n <ranks> parun -F tank3D_so.py -l 3 -v -D out --archive-driver mpio --wall-limit scheduler
 
    ``--archive-driver mpio`` is the driver for long runs (the serial driver gathers the 19.5 GB solver state on
-   rank 0 and failed above 2 GiB on Intel MPI before ``cekees/proteus#356``). ``--wall-limit scheduler`` stops at a
+   rank 0 and failed above 2 GiB on Intel MPI before ``cekees/proteus#356``; with ``#356`` a serial-driver run on
+   Mike wrote it, 20.4 GB, and exited 0). ``--wall-limit scheduler`` stops at a
    step boundary with room for a checkpoint before the SLURM or PBS job ends and exits with status 75; continue with
    the same command plus ``-H``.
 3. The same through ``pro`` (``pro`` runs this deck since ``cekees/proteus#344``)::
