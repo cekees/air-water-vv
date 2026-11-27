@@ -38,4 +38,4 @@ for time in tnList:
 info.close()
 
 
-archiveFlag = ArchiveFlags.EVERY_SEQUENCE_STEP
+archiveFlag = ArchiveFlags.EVERY_USER_STEP  # one frame per dt_fixed; EVERY_SEQUENCE_STEP wrote a frame per step (858 frames, 305 GB)

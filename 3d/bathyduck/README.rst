@@ -37,7 +37,6 @@ for a shorter test (the ``-C`` options of this deck are the wave parameters only
 
    On Carpenter ``pro run -F --no-mesh`` after ``pro msh`` matched ``parun -F`` (histories and h5 size and dataset
    count) at 576 ranks, before ``#344`` was merged; the merged commit was not re-run at that scale.
-4. Output: ``tank3D_so.py`` sets ``archiveFlag = ArchiveFlags.EVERY_SEQUENCE_STEP``, a frame at every accepted step
-   (858 frames, 305 GB in an earlier Mike run). ``ArchiveFlags.EVERY_USER_STEP`` (the proteus default) writes one
-   frame per ``dt_fixed``: 71 frames of 0.126 GB plus the mesh once (0.207 GB) plus the 19.5 GB solver state, about
-   29 GB in all.
+4. Output: ``tank3D_so.py`` sets ``archiveFlag = ArchiveFlags.EVERY_USER_STEP``: one frame per ``dt_fixed`` (71 frames
+   of 0.126 GB plus the mesh once, 0.207 GB, plus the 19.5 GB solver state, about 29 GB in all). It used to set
+   ``EVERY_SEQUENCE_STEP``, a frame at every accepted step (858 frames, 305 GB in an earlier Mike run).

@@ -75,8 +75,7 @@ The mesh has 49 million tetrahedra and needs about 65-70 KB per tetrahedron over
 
    On Carpenter ``pro run -F --no-mesh`` after ``pro msh`` gave histories and an h5 file the same size and dataset
    count as ``parun -F`` at 3,072 ranks (before ``#344`` was merged); the merged commit was not re-run at that scale.
-4. Output: ``tank3D_so.py`` sets ``archiveFlag = ArchiveFlags.EVERY_SEQUENCE_STEP``, a frame at every accepted step
-   (80 frames, 326 GB in an earlier Mike run; on builds before the static-mesh change every frame also rewrote the
-   mesh). ``ArchiveFlags.EVERY_USER_STEP`` (the proteus default) writes one frame per ``dt_fixed``; the committed
-   ``dt_fixed = T`` gives a single output time, so set ``dt_fixed`` to the period (1.94 s) for field
-   output once per period.
+4. Output: ``tank3D_so.py`` sets ``archiveFlag = ArchiveFlags.EVERY_USER_STEP``: one frame per ``dt_fixed``. The
+   committed ``dt_fixed = T`` gives a single output time, so set ``dt_fixed`` to the period (1.94 s) for field output
+   once per period (41 frames of about 4 GB each before the static-mesh change). It used to set
+   ``EVERY_SEQUENCE_STEP``, a frame at every accepted step (80 frames, 326 GB in an earlier Mike run).
